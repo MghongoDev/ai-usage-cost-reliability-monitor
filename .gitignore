@@ -1,0 +1,21 @@
+# Secrets and key material: never commit these
+.env
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+dist/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local Postgres data (native runs)
+pgdata/
+dumps/
+
+# Editor
+.DS_Store
