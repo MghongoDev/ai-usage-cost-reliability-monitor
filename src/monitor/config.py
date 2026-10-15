@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    database_url: str = "postgresql://monitor:monitor@localhost:5432/monitor"
+    database_url: str = "postgresql://monitor:monitor@localhost:55432/monitor"
 
     # Simulator or real provider base URLs. Both providers are read through
     # the same UsageSource interface, so switching is a config change.

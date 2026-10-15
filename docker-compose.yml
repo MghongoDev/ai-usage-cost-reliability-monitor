@@ -6,9 +6,12 @@ services:
       POSTGRES_PASSWORD: monitor
       POSTGRES_DB: monitor
     ports:
-      - "5432:5432"
+      # Host 5432 is taken by a system Postgres; the container publishes on 55432.
+      # Tests and local runs use DATABASE_URL=...localhost:55432.
+      - "55432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      # PG 18+ images want the volume at the parent dir so pg_upgrade works.
+      - pgdata:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U monitor"]
       interval: 5s
