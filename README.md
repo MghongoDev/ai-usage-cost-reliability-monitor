@@ -8,12 +8,12 @@ A self-hosted monitor for an organization's AI platforms. It pulls usage, cost, 
 
 ```bash
 make install     # uv sync
-make up          # Postgres + simulator via docker compose
+make up          # Postgres via docker compose
 make migrate     # alembic upgrade head
-make backfill    # 90 days of synthetic history
 ```
 
-Then open Grafana at http://localhost:3000 (anonymous read-only).
+The simulator, collectors, and dashboards are under construction; see the
+issue tracker for the tracer-bullet plan.
 
 ## Layout
 

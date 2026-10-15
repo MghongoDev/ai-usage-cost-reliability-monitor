@@ -73,6 +73,47 @@ class TestSchemaContract:
         columns = {c["name"] for c in inspect(db).get_columns("usage_fact")}
         assert "cache_creation" in columns
 
+    def test_generated_dims_key_matches_the_python_rule_for_populated_dims(self, db) -> None:
+        # Binds the SQL generated column to the Python dims_key function: a
+        # row with real dimensions must produce the same key the Python rule
+        # computes, or the two copies of the rule have drifted.
+        from monitor.db import dims_key
+
+        with db.begin() as conn:
+            conn.execute(
+                text(
+                    "INSERT INTO usage_fact (provider, bucket_start, bucket_width,"
+                    " scope_id, api_key_id, model, input_uncached)"
+                    " VALUES ('anthropic', '2026-10-14T11:00:00Z', '1h',"
+                    " 'ws_1', 'key_1', 'claude-opus-5-5', 10)"
+                )
+            )
+            dims = conn.execute(
+                text(
+                    "SELECT dims_key FROM usage_fact"
+                    " WHERE provider='anthropic' AND bucket_start='2026-10-14T11:00:00Z'"
+                )
+            ).scalar_one()
+        assert dims == dims_key("ws_1", "key_1", "claude-opus-5-5")
+
+    def test_cost_fact_primary_key_survives_null_scope(self, db) -> None:
+        # The cost_fact bug the review caught: a nullable scope_id in the PK
+        # would be promoted to NOT NULL and reject default-workspace cost rows.
+        with db.begin() as conn:
+            conn.execute(
+                text(
+                    "INSERT INTO cost_fact (provider, day, scope_id, line_item, amount_usd)"
+                    " VALUES ('anthropic', '2026-10-14', NULL, 'Claude Opus 5.5 Usage', 1.50)"
+                )
+            )
+            scope_key = conn.execute(
+                text(
+                    "SELECT scope_key FROM cost_fact"
+                    " WHERE provider='anthropic' AND day='2026-10-14'"
+                )
+            ).scalar_one()
+        assert scope_key == "~"
+
     def test_identity_tables_use_identity_primary_keys(self, db) -> None:
         for table in ("probe_result", "collector_run", "raw_payload"):
             pk = inspect(db).get_pk_constraint(table)

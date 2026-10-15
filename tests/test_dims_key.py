@@ -25,5 +25,12 @@ class TestDimsKey:
         # fix is length-prefixing each value here and in the generated column.
         assert dims_key("a|b", "c", "d") == dims_key("a", "b|c", "d")
 
-    def test_rows_differing_only_in_a_null_dimension_share_a_key(self) -> None:
-        assert dims_key(None, "key_1", "model") == dims_key(None, "key_1", "model")
+    def test_a_null_dimension_and_the_literal_marker_share_a_key(self) -> None:
+        # The whole point of the rule: a null scope and an explicit '~' scope
+        # are the same dimension combination, so they collide on the PK.
+        assert dims_key(None, "key_1", "model") == dims_key("~", "key_1", "model")
+
+    def test_rows_differing_in_a_real_dimension_do_not_share_a_key(self) -> None:
+        # Distinct dimensions must not collide, or distinct buckets would
+        # silently merge on upsert.
+        assert dims_key("ws_1", "key_1", "model") != dims_key("ws_2", "key_1", "model")

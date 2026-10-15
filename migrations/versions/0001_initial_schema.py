@@ -72,7 +72,16 @@ def upgrade() -> None:
         sa.Column(
             "fetched_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
         ),
-        sa.PrimaryKeyConstraint("provider", "day", "scope_id", "line_item"),
+        # Same rule as usage_fact: a nullable dimension in the PK collapses to
+        # the '~' marker via a generated column, so a null-scope cost row
+        # (default workspace) still stores.
+        sa.Column(
+            "scope_key",
+            sa.Text(),
+            sa.Computed("coalesce(scope_id, '~')", persisted=True),
+            nullable=False,
+        ),
+        sa.PrimaryKeyConstraint("provider", "day", "scope_key", "line_item"),
     )
 
     op.create_table(
