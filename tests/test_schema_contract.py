@@ -35,10 +35,10 @@ UPSERT_NULL_DIMS = (
 def db():
     engine = create_engine(settings.database_url)
     with engine.begin() as conn:
-        conn.execute(text("TRUNCATE usage_fact"))
+        conn.execute(text("TRUNCATE usage_fact, cost_fact, collector_run, raw_payload"))
     yield engine
     with engine.begin() as conn:
-        conn.execute(text("TRUNCATE usage_fact"))
+        conn.execute(text("TRUNCATE usage_fact, cost_fact, collector_run, raw_payload"))
     engine.dispose()
 
 

@@ -40,6 +40,11 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
+[tool.ruff.lint.per-file-ignores]
+# FastAPI's Query() in argument defaults is the idiomatic way to declare
+# query parameters; B008 is a false positive here.
+"src/monitor/simulator/**" = ["B008"]
+
 [tool.mypy]
 python_version = "3.12"
 mypy_path = "src"
