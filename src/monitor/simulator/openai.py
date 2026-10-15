@@ -170,3 +170,54 @@ def costs(
         "has_more": False,
         "next_page": None,
     }
+
+
+@openai_router.get("/v1/organization/projects")
+def list_projects(
+    after: str | None = Query(None),
+    limit: int = Query(100, le=100),
+    include_archived: bool = Query(False),
+    authorization: str | None = Header(None),
+) -> dict[str, Any]:
+    _auth(authorization)
+    return {
+        "object": "list",
+        "data": [
+            {
+                "id": project_id,
+                "name": f"Project {i + 1}",
+                "status": "active",
+                "created_at": 1729000000,
+                "archived": False,
+            }
+            for i, project_id in enumerate(_PROJECTS)
+        ],
+        "first_id": _PROJECTS[0],
+        "last_id": _PROJECTS[-1],
+    }
+
+
+@openai_router.get("/v1/organization/projects/{project_id}/api_keys")
+def list_project_api_keys(
+    project_id: str,
+    authorization: str | None = Header(None),
+) -> dict[str, Any]:
+    _auth(authorization)
+    return {
+        "object": "list",
+        "data": [
+            {
+                "id": f"key_{i:02d}",
+                "name": f"Key {i}",
+                "status": "active",
+                "owner_project_access": True,
+                "redacted_value": f"sk-...{i:04d}",
+                "last_used_at": "2026-10-14T00:00:00Z",
+                "expires_at": None,
+                "owner": {"type": "user", "id": "user_01"},
+            }
+            for i in range(1, 5)
+        ],
+        "first_id": "key_01",
+        "last_id": "key_04",
+    }

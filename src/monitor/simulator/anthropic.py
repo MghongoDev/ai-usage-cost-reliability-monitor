@@ -148,3 +148,77 @@ def usage_report_messages(
         "has_more": False,
         "next_page": None,
     }
+
+
+@anthropic_router.get("/v1/organizations/api_keys")
+def list_api_keys(
+    after_id: str | None = Query(None),
+    before_id: str | None = Query(None),
+    status: str | None = Query(None),
+    limit: int = Query(50, le=100),
+    x_api_key: str | None = Header(None),
+    anthropic_version: str | None = Header(None),
+) -> dict[str, Any]:
+    _auth(x_api_key, anthropic_version)
+    keys = [
+        {
+            "id": f"apikey_{i:02d}",
+            "type": "api_key",
+            "name": f"Key {i}",
+            "partial_key_hint": f"***...{i:04d}",
+            "status": "active",
+            "created_at": "2026-09-01T00:00:00Z",
+            "created_by": {"id": "user_01", "type": "user"},
+            "scope": {"type": "workspace", "workspace_id": _WORKSPACES[i % 3]},
+            "workspace_id": _WORKSPACES[i % 3],
+        }
+        for i in range(1, 9)
+    ]
+    if status:
+        keys = [k for k in keys if k["status"] == status]
+    return {
+        "data": keys,
+        "first_id": keys[0]["id"] if keys else None,
+        "last_id": keys[-1]["id"] if keys else None,
+        "has_more": False,
+    }
+
+
+@anthropic_router.get("/v1/organizations/workspaces")
+def list_workspaces(
+    include_default: bool = Query(False),
+    include_archived: bool = Query(False),
+    limit: int = Query(20, le=1000),
+    x_api_key: str | None = Header(None),
+    anthropic_version: str | None = Header(None),
+) -> dict[str, Any]:
+    _auth(x_api_key, anthropic_version)
+    workspaces = [
+        {
+            "id": ws_id,
+            "name": f"Workspace {i + 1}",
+            "type": "workspace",
+            "archived_at": None,
+            "created_at": "2026-08-01T00:00:00Z",
+            "is_default": False,
+        }
+        for i, ws_id in enumerate(_WORKSPACES)
+    ]
+    if include_default:
+        workspaces.insert(
+            0,
+            {
+                "id": "wrkspc_default",
+                "name": "Default Workspace",
+                "type": "workspace",
+                "archived_at": None,
+                "created_at": "2026-01-01T00:00:00Z",
+                "is_default": True,
+            },
+        )
+    return {
+        "data": workspaces,
+        "first_id": workspaces[0]["id"] if workspaces else None,
+        "last_id": workspaces[-1]["id"] if workspaces else None,
+        "has_more": False,
+    }

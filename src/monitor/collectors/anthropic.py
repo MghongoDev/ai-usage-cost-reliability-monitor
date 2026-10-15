@@ -108,5 +108,20 @@ class AnthropicUsageSource:
         return []
 
     def list_keys(self) -> list[dict[str, Any]]:
-        """Fetch key inventory. Stub: inventory is Tracer 04."""
-        return []
+        """Fetch key inventory via cursor pagination."""
+        from monitor.collectors.normalize_inventory import normalize_anthropic_keys_payload
+
+        all_rows: list[dict[str, Any]] = []
+        after_id: str | None = None
+        while True:
+            params: dict[str, Any] = {"limit": 100}
+            if after_id:
+                params["after_id"] = after_id
+            payload = self._get("/v1/organizations/api_keys", params)
+            all_rows.extend(normalize_anthropic_keys_payload(payload))
+            if not payload.get("has_more"):
+                break
+            after_id = payload.get("last_id")
+            if not after_id:
+                break
+        return all_rows

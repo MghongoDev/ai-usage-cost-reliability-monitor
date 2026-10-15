@@ -85,5 +85,29 @@ class OpenAIUsageSource:
         return []
 
     def list_keys(self) -> list[dict[str, Any]]:
-        """Fetch key inventory. Stub: inventory is Tracer 04."""
-        return []
+        """Fetch key inventory: projects first, then keys per project."""
+        from monitor.collectors.normalize_inventory import (
+            normalize_openai_keys_payload,
+        )
+
+        all_rows: list[dict[str, Any]] = []
+        after: str | None = None
+        while True:
+            params: dict[str, Any] = {"limit": 100}
+            if after:
+                params["after"] = after
+            projects_payload = self._get("/v1/organization/projects", params)
+            for project in projects_payload.get("data", []):
+                project_id = project["id"]
+                keys_payload = self._get(
+                    f"/v1/organization/projects/{project_id}/api_keys", {}
+                )
+                all_rows.extend(
+                    normalize_openai_keys_payload(keys_payload, project_id=project_id)
+                )
+            if not projects_payload.get("has_more"):
+                break
+            after = projects_payload.get("last_id")
+            if not after:
+                break
+        return all_rows

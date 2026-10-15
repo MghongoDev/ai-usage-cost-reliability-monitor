@@ -105,6 +105,56 @@ def record_collector_run(
     )
 
 
+def upsert_key_inventory_rows(conn: Connection, rows: list[dict[str, Any]]) -> int:
+    """Upsert key_inventory rows. Returns the number of rows written."""
+    if not rows:
+        return 0
+    import json
+
+    stmt = text(
+        """
+        INSERT INTO key_inventory (
+            provider, snapshot_date, api_key_id, scope_id, name, status,
+            owner, created_at, last_used_at, extra
+        ) VALUES (
+            :provider, CURRENT_DATE, :api_key_id, :scope_id, :name, :status,
+            :owner, :created_at, :last_used_at, CAST(:extra AS jsonb)
+        )
+        ON CONFLICT (provider, snapshot_date, api_key_id)
+        DO UPDATE SET
+            scope_id = EXCLUDED.scope_id,
+            name = EXCLUDED.name,
+            status = EXCLUDED.status,
+            owner = EXCLUDED.owner,
+            created_at = EXCLUDED.created_at,
+            last_used_at = EXCLUDED.last_used_at,
+            extra = EXCLUDED.extra,
+            fetched_at = now()
+        """
+    )
+    rows = [{**r, "extra": json.dumps(r.get("extra", {}))} for r in rows]
+    conn.execute(stmt, rows)
+    return len(rows)
+
+
+def unused_keys_query(conn: Connection, days: int = 30) -> Any:
+    """Find keys with no usage for the last N days."""
+    stmt = text(
+        """
+        SELECT k.api_key_id, k.provider, k.name, k.owner, k.status
+        FROM key_inventory k
+        WHERE NOT EXISTS (
+            SELECT 1 FROM usage_fact u
+            WHERE u.api_key_id = k.api_key_id
+              AND u.provider = k.provider
+              AND u.bucket_start >= now() - make_interval(days => :days)
+        )
+        ORDER BY k.provider, k.api_key_id
+        """
+    )
+    return conn.execute(stmt, {"days": days}).fetchall()
+
+
 def run_collection(
     conn: Connection,
     source: UsageSource,
