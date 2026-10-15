@@ -10,8 +10,10 @@ from typing import Any, Protocol
 class UsageSource(Protocol):
     """Read-only access to one provider's usage, cost, and key inventory."""
 
-    def fetch_usage(self, window: tuple[str, str], bucket_width: str) -> list[dict[str, Any]]:
-        """Return usage rows for [start, end) at the given bucket width.
+    def fetch_usage(
+        self, window: tuple[str, str], bucket_width: str
+    ) -> tuple[list[dict[str, Any]], int]:
+        """Return (usage rows, unknown field count) for [start, end) at the given bucket width.
 
         Rows are the dicts produced by the provider's normalize function.
         """

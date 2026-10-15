@@ -10,6 +10,8 @@ from typing import Any
 
 from sqlalchemy import Connection, text
 
+from monitor.collectors.base import UsageSource
+
 
 def upsert_usage_rows(conn: Connection, rows: list[dict[str, Any]]) -> int:
     """Upsert usage_fact rows. Returns the number of rows written."""
@@ -94,3 +96,48 @@ def record_collector_run(
             "error": error,
         },
     )
+
+
+def run_collection(
+    conn: Connection,
+    source: UsageSource,
+    window: tuple[str, str],
+    bucket_width: str = "1h",
+) -> int:
+    """Fetch usage, upsert, and record the run. Returns rows written.
+
+    This is the thin runner that ties fetch + upsert + record together so
+    every collect cycle lands in collector_run and raw_payload.
+    """
+    start, end = window
+    try:
+        rows, _ = source.fetch_usage(window, bucket_width=bucket_width)
+        upsert_usage_rows(conn, rows)
+        if hasattr(source, "last_raw_response") and source.last_raw_response is not None:
+            record_raw_payload(
+                conn,
+                provider="anthropic",
+                endpoint="/v1/organizations/usage_report/messages",
+                params={"starting_at": start, "ending_at": end, "bucket_width": bucket_width},
+                body=source.last_raw_response,
+            )
+        record_collector_run(
+            conn,
+            source="anthropic.usage",
+            window_start=start,
+            window_end=end,
+            rows_written=len(rows),
+            success=True,
+        )
+        return len(rows)
+    except Exception as exc:
+        record_collector_run(
+            conn,
+            source="anthropic.usage",
+            window_start=start,
+            window_end=end,
+            rows_written=0,
+            success=False,
+            error=str(exc),
+        )
+        raise

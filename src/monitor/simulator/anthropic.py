@@ -12,20 +12,13 @@ from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException, Query
 
-anthropic_router = APIRouter()
+from monitor.simulator.constants import BUCKET_LIMITS, VERSION
 
-# Per-bucket-width window caps, mirroring the real API's documented limits.
-BUCKET_LIMITS = {
-    "1m": 1440,  # 24h
-    "1h": 168,  # 7 days
-    "1d": 31,  # 31 days
-}
+anthropic_router = APIRouter()
 
 _MODELS = ["claude-opus-5-5", "claude-sonnet-5", "claude-haiku-5-5"]
 _WORKSPACES = ["wrkspc_01", "wrkspc_02", "wrkspc_03"]
 _KEYS = ["apikey_01", "apikey_02", "apikey_03", "apikey_04"]
-
-_VERSION = "2023-06-01"
 
 
 def _auth(
@@ -33,8 +26,8 @@ def _auth(
 ) -> None:
     if not x_api_key:
         raise HTTPException(status_code=401, detail="x-api-key header required")
-    if anthropic_version != _VERSION:
-        raise HTTPException(status_code=400, detail=f"anthropic-version must be {_VERSION}")
+    if anthropic_version != VERSION:
+        raise HTTPException(status_code=400, detail=f"anthropic-version must be {VERSION}")
 
 
 def _parse_ts(value: str) -> datetime:

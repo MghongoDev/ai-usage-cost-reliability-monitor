@@ -12,16 +12,8 @@ from typing import Any
 import httpx
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential_jitter
 
+from monitor.collectors.constants import BUCKET_LIMITS, VERSION
 from monitor.collectors.normalize import normalize_anthropic_usage
-
-# Per-bucket-width window caps, mirroring the real API's documented limits.
-BUCKET_LIMITS = {
-    "1m": 1440,  # 24h
-    "1h": 168,  # 7 days
-    "1d": 31,  # 31 days
-}
-
-_VERSION = "2023-06-01"
 
 
 class ReadOnlyTransport(httpx.HTTPTransport):
@@ -44,13 +36,14 @@ class AnthropicUsageSource:
         self.base_url = base_url.rstrip("/")
         self.admin_key = admin_key
         self._transport = transport
+        self.last_raw_response: dict[str, Any] | None = None
 
     def _client(self) -> httpx.Client:
         return httpx.Client(
             transport=self._transport or ReadOnlyTransport(),
             headers={
                 "x-api-key": self.admin_key,
-                "anthropic-version": _VERSION,
+                "anthropic-version": VERSION,
             },
             timeout=30.0,
         )
@@ -66,18 +59,16 @@ class AnthropicUsageSource:
             resp = client.get(f"{self.base_url}{path}", params=params)
             resp.raise_for_status()
             result: dict[str, Any] = resp.json()
+            self.last_raw_response = result
             return result
 
     def fetch_usage(
         self, window: tuple[str, str], bucket_width: str = "1h"
-    ) -> list[dict[str, Any]]:
+    ) -> tuple[list[dict[str, Any]], int]:
         """Fetch usage rows for [start, end), chunked to the bucket-width limit."""
         if bucket_width not in BUCKET_LIMITS:
             raise ValueError(f"bucket_width must be one of {list(BUCKET_LIMITS)}")
         start, end = window
-        rows: list[dict[str, Any]] = []
-        # For now, single-chunk fetch (the simulator serves small windows).
-        # Window chunking across multiple requests comes with the backfill CLI.
         payload = self._get(
             "/v1/organizations/usage_report/messages",
             params={
@@ -89,9 +80,28 @@ class AnthropicUsageSource:
         )
         # The API returns {"data": [bucket, ...], "has_more": bool, "next_page": str}.
         # Each bucket has its own starting_at/ending_at/results.
-        for bucket in payload["data"]:
-            rows.extend(normalize_anthropic_usage(bucket, bucket_width=bucket_width))
-        return rows
+        all_rows: list[dict[str, Any]] = []
+        total_unknown = 0
+        page: str | None = None
+        while True:
+            params = {
+                "starting_at": start,
+                "ending_at": end,
+                "bucket_width": bucket_width,
+                "group_by": ["api_key_id", "model"],
+            }
+            if page:
+                params["page"] = page
+            payload = self._get("/v1/organizations/usage_report/messages", params)
+            page_rows, unknown = normalize_anthropic_usage(payload, bucket_width=bucket_width)
+            all_rows.extend(page_rows)
+            total_unknown += unknown
+            if not payload.get("has_more"):
+                break
+            page = payload.get("next_page")
+            if not page:
+                break
+        return all_rows, total_unknown
 
     def fetch_costs(self, window: tuple[str, str]) -> list[dict[str, Any]]:
         """Fetch cost rows. Stub: cost collection is Tracer 05."""

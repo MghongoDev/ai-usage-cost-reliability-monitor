@@ -64,7 +64,7 @@ class TestAnthropicCollectorIdempotency:
             admin_key="test-key",
             transport=_mock_transport(*window),
         )
-        rows1 = source1.fetch_usage(window, bucket_width="1h")
+        rows1, _ = source1.fetch_usage(window, bucket_width="1h")
         with db.begin() as conn:
             upsert_usage_rows(conn, rows1)
             count1 = conn.execute(text("SELECT count(*) FROM usage_fact")).scalar_one()
@@ -75,7 +75,7 @@ class TestAnthropicCollectorIdempotency:
             admin_key="test-key",
             transport=_mock_transport(*window),
         )
-        rows2 = source2.fetch_usage(window, bucket_width="1h")
+        rows2, _ = source2.fetch_usage(window, bucket_width="1h")
         with db.begin() as conn:
             upsert_usage_rows(conn, rows2)
             count2 = conn.execute(text("SELECT count(*) FROM usage_fact")).scalar_one()
@@ -84,7 +84,7 @@ class TestAnthropicCollectorIdempotency:
         assert count1 > 0
 
     def test_collector_records_run_and_raw_payload(self, db) -> None:
-        from monitor.db.upsert import record_collector_run, record_raw_payload
+        from monitor.db.upsert import run_collection
 
         window = ("2026-10-14T10:00:00Z", "2026-10-14T11:00:00Z")
         source = AnthropicUsageSource(
@@ -92,25 +92,9 @@ class TestAnthropicCollectorIdempotency:
             admin_key="test-key",
             transport=_mock_transport(*window),
         )
-        rows = source.fetch_usage(window, bucket_width="1h")
 
         with db.begin() as conn:
-            upsert_usage_rows(conn, rows)
-            record_raw_payload(
-                conn,
-                provider="anthropic",
-                endpoint="/v1/organizations/usage_report/messages",
-                params={"starting_at": window[0], "ending_at": window[1], "bucket_width": "1h"},
-                body={"data": []},
-            )
-            record_collector_run(
-                conn,
-                source="anthropic.usage",
-                window_start=window[0],
-                window_end=window[1],
-                rows_written=len(rows),
-                success=True,
-            )
+            rows_written = run_collection(conn, source, window, bucket_width="1h")
 
             run = conn.execute(
                 text(
@@ -119,7 +103,7 @@ class TestAnthropicCollectorIdempotency:
                 )
             ).fetchone()
             assert run.source == "anthropic.usage"
-            assert run.rows_written == len(rows)
+            assert run.rows_written == rows_written
             assert run.success is True
 
             payload_count = conn.execute(text("SELECT count(*) FROM raw_payload")).scalar_one()

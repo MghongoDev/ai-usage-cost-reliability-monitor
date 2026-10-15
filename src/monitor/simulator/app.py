@@ -15,7 +15,6 @@ __all__ = ["create_app"]
 
 
 def create_app() -> FastAPI:
-    from fastapi import FastAPI
 
     app = FastAPI(title="AI Usage Monitor Simulator")
     app.include_router(anthropic_router, prefix="/anthropic")

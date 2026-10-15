@@ -1,18 +1,25 @@
 """Pure normalization functions: provider payload to usage_fact rows.
 
-No I/O, no database, no HTTP. The collector fetches a payload, hands it to one
-of these, and gets back row dicts ready for the idempotent upsert.
+No I/O, no database, no HTTP. The collector fetches a payload, validates it
+through Pydantic models (unknown fields counted, missing required fields
+fail loudly), and hands the rows to the idempotent upsert.
 """
 
 from typing import Any
 
+from monitor.collectors.models import UsageReport, count_nested_unknown
 
-def normalize_anthropic_usage(payload: dict[str, Any], bucket_width: str) -> list[dict[str, Any]]:
+
+def normalize_anthropic_usage(
+    payload: dict[str, Any], bucket_width: str
+) -> tuple[list[dict[str, Any]], int]:
     """Map one Anthropic usage_report/messages payload to usage_fact rows.
 
-    The payload is the ``data`` array element shape: a starting/ending time and
-    a ``results`` list, one entry per (api_key, model) group. Each result
-    becomes one usage_fact row. Token classes map as:
+    Returns (rows, unknown_field_count). Rows are ready for the idempotent
+    upsert. The unknown field count is logged by the collector so schema
+    drift is visible.
+
+    Token classes map as:
     - uncached input  -> input_uncached
     - cache read      -> input_cached
     - cache creation  -> cache_creation (sum of the 5m and 1h buckets)
@@ -22,39 +29,39 @@ def normalize_anthropic_usage(payload: dict[str, Any], bucket_width: str) -> lis
     reports them null (console usage, default workspace); the schema's dims_key
     coalesces those to '~' so the row still stores.
     """
+    report = UsageReport.model_validate(payload)
+    unknown = count_nested_unknown(report)
+
     rows: list[dict[str, Any]] = []
-    for result in payload["results"]:
-        cache_creation = result.get("cache_creation", {})
-        rows.append(
-            {
-                "provider": "anthropic",
-                "bucket_start": payload["starting_at"],
-                "bucket_width": bucket_width,
-                "scope_id": result.get("workspace_id"),
-                "api_key_id": result.get("api_key_id"),
-                "model": result["model"],
-                "requests": None,  # Anthropic usage reports don't carry a request count
-                "input_uncached": result.get("uncached_input_tokens", 0),
-                "input_cached": result.get("cache_read_input_tokens", 0),
-                "cache_creation": cache_creation.get("ephemeral_5m_input_tokens", 0)
-                + cache_creation.get("ephemeral_1h_input_tokens", 0),
-                "output_tokens": result.get("output_tokens", 0),
-                "extra": _extract_extra(result),
-            }
-        )
-    return rows
+    for bucket in report.data:
+        for result in bucket.results:
+            rows.append(
+                {
+                    "provider": "anthropic",
+                    "bucket_start": bucket.starting_at,
+                    "bucket_width": bucket_width,
+                    "scope_id": result.workspace_id,
+                    "api_key_id": result.api_key_id,
+                    "model": result.model,
+                    "requests": None,  # Anthropic usage reports don't carry a request count
+                    "input_uncached": result.uncached_input_tokens,
+                    "input_cached": result.cache_read_input_tokens,
+                    "cache_creation": result.cache_creation.ephemeral_5m_input_tokens
+                    + result.cache_creation.ephemeral_1h_input_tokens,
+                    "output_tokens": result.output_tokens,
+                    "extra": _extract_extra(result),
+                }
+            )
+    return rows, unknown
 
 
-def _extract_extra(result: dict[str, Any]) -> dict[str, Any]:
-    """Pull provider-specific counters into the extra jsonb.
-
-    Unknown fields are kept here (counted by the collector at the payload
-    level) so schema drift is visible instead of silently dropped.
-    """
+def _extract_extra(result: Any) -> dict[str, Any]:
+    """Pull provider-specific counters into the extra jsonb."""
     extra: dict[str, Any] = {}
-    if "server_tool_use" in result:
-        extra["server_tool_use"] = result["server_tool_use"]
-    for field in ("context_window", "inference_geo", "service_tier", "account_id"):
-        if field in result:
-            extra[field] = result[field]
+    if result.server_tool_use:
+        extra["server_tool_use"] = result.server_tool_use
+    # Capture any extra fields Pydantic allowed through
+    if result.model_extra:
+        for key, value in result.model_extra.items():
+            extra[key] = value
     return extra
