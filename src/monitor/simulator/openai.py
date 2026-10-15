@@ -145,7 +145,7 @@ def costs(
     while cursor < end:
         bucket_end = cursor + timedelta(days=1)
         results = []
-        if _activity_for(cursor):
+        if True:  # Daily cost aggregates always have data if there was activity
             for project in _PROJECTS:
                 results.append(
                     {

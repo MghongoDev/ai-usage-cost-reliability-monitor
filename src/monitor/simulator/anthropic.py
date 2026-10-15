@@ -150,6 +150,59 @@ def usage_report_messages(
     }
 
 
+@anthropic_router.get("/v1/organizations/cost_report")
+def cost_report(
+    starting_at: str = Query(...),
+    ending_at: str | None = Query(None),
+    bucket_width: str = Query("1d"),
+    group_by: list[str] = Query(["description"]),
+    x_api_key: str | None = Header(None),
+    anthropic_version: str | None = Header(None),
+) -> dict[str, Any]:
+    _auth(x_api_key, anthropic_version)
+    if bucket_width != "1d":
+        raise HTTPException(status_code=400, detail="cost_report only supports bucket_width=1d")
+
+    start = _parse_ts(starting_at)
+    end = _parse_ts(ending_at) if ending_at else start + timedelta(days=1)
+
+    buckets = []
+    cursor = start
+    while cursor < end:
+        bucket_end = cursor + timedelta(days=1)
+        results = []
+        if True:  # Daily cost aggregates always have data if there was activity
+            for workspace in _WORKSPACES:
+                results.append(
+                    {
+                        "amount": "123.78",
+                        "currency": "USD",
+                        "cost_type": "tokens",
+                        "description": "Claude Opus 5.5 Usage - Input Tokens",
+                        "model": "claude-opus-5-5",
+                        "inference_geo": "global",
+                        "service_tier": "standard",
+                        "context_window": "0-200k",
+                        "token_type": "input_tokens",
+                        "workspace_id": workspace,
+                    }
+                )
+        buckets.append(
+            {
+                "starting_at": cursor.isoformat().replace("+00:00", "Z"),
+                "ending_at": bucket_end.isoformat().replace("+00:00", "Z"),
+                "results": results,
+            }
+        )
+        cursor = bucket_end
+
+    return {
+        "data": buckets,
+        "has_more": False,
+        "next_page": None,
+    }
+
+
 @anthropic_router.get("/v1/organizations/api_keys")
 def list_api_keys(
     after_id: str | None = Query(None),

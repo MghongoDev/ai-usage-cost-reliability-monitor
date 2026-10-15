@@ -137,6 +137,83 @@ def upsert_key_inventory_rows(conn: Connection, rows: list[dict[str, Any]]) -> i
     return len(rows)
 
 
+def upsert_cost_rows(conn: Connection, rows: list[dict[str, Any]]) -> int:
+    """Upsert cost_fact rows. Returns the number of rows written."""
+    if not rows:
+        return 0
+    stmt = text(
+        """
+        INSERT INTO cost_fact (
+            provider, day, scope_id, line_item, amount_usd, description, cost_type
+        )
+        VALUES (:provider, :day, :scope_id, :line_item, :amount_usd, :description, :cost_type)
+        ON CONFLICT (provider, day, scope_key, line_item)
+        DO UPDATE SET
+            amount_usd = EXCLUDED.amount_usd,
+            description = EXCLUDED.description,
+            cost_type = EXCLUDED.cost_type,
+            fetched_at = now()
+        """
+    )
+    conn.execute(stmt, rows)
+    return len(rows)
+
+
+def estimated_cost_query(conn: Connection) -> Any:
+    """Estimated cost per hour/key/model from usage times price.
+
+    Models with no price row show cost as NULL (unpriced), never zero.
+    """
+    stmt = text(
+        """
+        SELECT
+            u.provider,
+            u.bucket_start,
+            u.api_key_id,
+            u.model,
+            u.input_uncached,
+            u.input_cached,
+            u.cache_creation,
+            u.output_tokens,
+            CASE
+                WHEN p.input_uncached IS NULL OR p.input_cached IS NULL
+                     OR p.cache_creation IS NULL OR p.output IS NULL
+                THEN NULL
+                ELSE (
+                    u.input_uncached * p.input_uncached / 1000000.0
+                    + u.input_cached * p.input_cached / 1000000.0
+                    + u.cache_creation * p.cache_creation / 1000000.0
+                    + u.output_tokens * p.output / 1000000.0
+                )
+            END AS estimated_cost_usd,
+            CASE
+                WHEN p.input_uncached IS NULL OR p.input_cached IS NULL
+                     OR p.cache_creation IS NULL OR p.output IS NULL
+                THEN TRUE
+                ELSE FALSE
+            END AS unpriced
+        FROM usage_fact u
+        LEFT JOIN (
+            SELECT provider, model,
+                MAX(CASE WHEN token_class = 'input_uncached'
+                    THEN usd_per_million END) AS input_uncached,
+                MAX(CASE WHEN token_class = 'input_cached'
+                    THEN usd_per_million END) AS input_cached,
+                MAX(CASE WHEN token_class = 'cache_creation'
+                    THEN usd_per_million END) AS cache_creation,
+                MAX(CASE WHEN token_class = 'output'
+                    THEN usd_per_million END) AS output
+            FROM price_table
+            WHERE effective_from <= CURRENT_DATE
+              AND (effective_to IS NULL OR effective_to >= CURRENT_DATE)
+            GROUP BY provider, model
+        ) p ON p.model = u.model AND p.provider = u.provider
+        ORDER BY u.bucket_start DESC, u.provider, u.api_key_id
+        """
+    )
+    return conn.execute(stmt).fetchall()
+
+
 def unused_keys_query(conn: Connection, days: int = 30) -> Any:
     """Find keys with no usage for the last N days."""
     stmt = text(

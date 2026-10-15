@@ -80,9 +80,21 @@ class OpenAIUsageSource:
                 break
         return all_rows, total_unknown
 
-    def fetch_costs(self, window: tuple[str, str]) -> list[dict[str, Any]]:
-        """Fetch cost rows. Stub: cost collection is Tracer 05."""
-        return []
+    def fetch_costs(self, window: tuple[str | int, str | int]) -> list[dict[str, Any]]:
+        """Fetch cost rows from the daily costs endpoint."""
+        from monitor.collectors.normalize_cost import normalize_openai_costs
+
+        start, end = window
+        payload = self._get(
+            "/v1/organization/costs",
+            params={
+                "start_time": start,
+                "end_time": end,
+                "bucket_width": "1d",
+                "group_by": ["project_id", "line_item"],
+            },
+        )
+        return normalize_openai_costs(payload)
 
     def list_keys(self) -> list[dict[str, Any]]:
         """Fetch key inventory: projects first, then keys per project."""
@@ -99,12 +111,8 @@ class OpenAIUsageSource:
             projects_payload = self._get("/v1/organization/projects", params)
             for project in projects_payload.get("data", []):
                 project_id = project["id"]
-                keys_payload = self._get(
-                    f"/v1/organization/projects/{project_id}/api_keys", {}
-                )
-                all_rows.extend(
-                    normalize_openai_keys_payload(keys_payload, project_id=project_id)
-                )
+                keys_payload = self._get(f"/v1/organization/projects/{project_id}/api_keys", {})
+                all_rows.extend(normalize_openai_keys_payload(keys_payload, project_id=project_id))
             if not projects_payload.get("has_more"):
                 break
             after = projects_payload.get("last_id")

@@ -103,9 +103,21 @@ class AnthropicUsageSource:
                 break
         return all_rows, total_unknown
 
-    def fetch_costs(self, window: tuple[str, str]) -> list[dict[str, Any]]:
-        """Fetch cost rows. Stub: cost collection is Tracer 05."""
-        return []
+    def fetch_costs(self, window: tuple[str | int, str | int]) -> list[dict[str, Any]]:
+        """Fetch cost rows from the daily cost report."""
+        from monitor.collectors.normalize_cost import normalize_anthropic_costs
+
+        start, end = window
+        payload = self._get(
+            "/v1/organizations/cost_report",
+            params={
+                "starting_at": start,
+                "ending_at": end,
+                "bucket_width": "1d",
+                "group_by": ["description"],
+            },
+        )
+        return normalize_anthropic_costs(payload)
 
     def list_keys(self) -> list[dict[str, Any]]:
         """Fetch key inventory via cursor pagination."""
