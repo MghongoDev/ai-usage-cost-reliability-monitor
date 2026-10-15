@@ -214,6 +214,107 @@ def estimated_cost_query(conn: Connection) -> Any:
     return conn.execute(stmt).fetchall()
 
 
+def reconciliation_query(conn: Connection) -> Any:
+    """Estimated vs billed cost per scope per day, with recon_error_pct."""
+    stmt = text(
+        """
+        SELECT
+            e.provider,
+            e.scope_id,
+            e.day,
+            e.estimated_usd,
+            b.billed_usd,
+            CASE
+                WHEN b.billed_usd IS NULL OR b.billed_usd = 0 THEN NULL
+                ELSE ABS(e.estimated_usd - b.billed_usd) / b.billed_usd * 100
+            END AS recon_error_pct
+        FROM (
+            SELECT u.provider, u.scope_id, u.bucket_start::date AS day,
+                SUM(
+                    u.input_uncached * p.input_uncached / 1000000.0
+                    + u.input_cached * p.input_cached / 1000000.0
+                    + u.cache_creation * p.cache_creation / 1000000.0
+                    + u.output_tokens * p.output / 1000000.0
+                ) AS estimated_usd
+            FROM usage_fact u
+            LEFT JOIN (
+                SELECT provider, model,
+                    MAX(CASE WHEN token_class = 'input_uncached'
+                        THEN usd_per_million END) AS input_uncached,
+                    MAX(CASE WHEN token_class = 'input_cached'
+                        THEN usd_per_million END) AS input_cached,
+                    MAX(CASE WHEN token_class = 'cache_creation'
+                        THEN usd_per_million END) AS cache_creation,
+                    MAX(CASE WHEN token_class = 'output'
+                        THEN usd_per_million END) AS output
+                FROM price_table
+                WHERE effective_from <= CURRENT_DATE
+                  AND (effective_to IS NULL OR effective_to >= CURRENT_DATE)
+                GROUP BY provider, model
+            ) p ON p.model = u.model AND p.provider = u.provider
+            WHERE p.input_uncached IS NOT NULL
+            GROUP BY u.provider, u.scope_id, u.bucket_start::date
+        ) e
+        FULL OUTER JOIN (
+            SELECT provider, scope_id, day, SUM(amount_usd) AS billed_usd
+            FROM cost_fact
+            GROUP BY provider, scope_id, day
+        ) b ON b.provider = e.provider AND b.scope_id = e.scope_id AND b.day = e.day
+        ORDER BY e.day, e.provider, e.scope_id
+        """
+    )
+    return conn.execute(stmt).fetchall()
+
+
+def budget_projection_query(conn: Connection, month: str) -> Any:
+    """Month-to-date, projected month-end, and percent of budget per scope."""
+    stmt = text(
+        """
+        SELECT
+            b.scope_id,
+            b.month,
+            b.amount_usd AS budget_usd,
+            COALESCE(SUM(c.amount_usd), 0) AS mtd_usd,
+            CASE
+                WHEN EXTRACT(DAY FROM CURRENT_DATE) = 0 THEN 0
+                ELSE COALESCE(SUM(c.amount_usd), 0) / EXTRACT(DAY FROM CURRENT_DATE)
+                     * EXTRACT(DAY FROM (
+                         DATE_TRUNC('month', b.month::date)
+                         + INTERVAL '1 month' - INTERVAL '1 day'
+                     ))
+            END AS projected_usd,
+            CASE
+                WHEN b.amount_usd = 0 THEN NULL
+                ELSE COALESCE(SUM(c.amount_usd), 0) / b.amount_usd * 100
+            END AS pct_of_budget
+        FROM budget b
+        LEFT JOIN cost_fact c ON c.scope_id = b.scope_id
+            AND c.day >= DATE_TRUNC('month', b.month::date)
+            AND c.day < DATE_TRUNC('month', b.month::date) + INTERVAL '1 month'
+        WHERE b.month = :month
+        GROUP BY b.scope_id, b.month, b.amount_usd
+        ORDER BY b.scope_id
+        """
+    )
+    return conn.execute(stmt, {"month": month}).fetchall()
+
+
+def upsert_budget_rows(conn: Connection, rows: list[dict[str, Any]]) -> int:
+    """Upsert budget rows. Returns the number of rows written."""
+    if not rows:
+        return 0
+    stmt = text(
+        """
+        INSERT INTO budget (scope_id, month, amount_usd)
+        VALUES (:scope_id, :month, :amount_usd)
+        ON CONFLICT (scope_id, month)
+        DO UPDATE SET amount_usd = EXCLUDED.amount_usd
+        """
+    )
+    conn.execute(stmt, rows)
+    return len(rows)
+
+
 def unused_keys_query(conn: Connection, days: int = 30) -> Any:
     """Find keys with no usage for the last N days."""
     stmt = text(

@@ -42,9 +42,9 @@ def normalize_openai_costs(payload: dict[str, Any]) -> list[dict[str, Any]]:
             rows.append(
                 {
                     "provider": "openai",
-                    "day": datetime.fromtimestamp(
-                        bucket["start_time"], tz=UTC
-                    ).strftime("%Y-%m-%d"),
+                    "day": datetime.fromtimestamp(bucket["start_time"], tz=UTC).strftime(
+                        "%Y-%m-%d"
+                    ),
                     "scope_id": result.get("project_id"),
                     "line_item": result.get("line_item", "Unknown"),
                     "amount_usd": float(amount_obj.get("value", "0")),
