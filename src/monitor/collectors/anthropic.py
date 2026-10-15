@@ -63,7 +63,7 @@ class AnthropicUsageSource:
             return result
 
     def fetch_usage(
-        self, window: tuple[str, str], bucket_width: str = "1h"
+        self, window: tuple[str | int, str | int], bucket_width: str = "1h"
     ) -> tuple[list[dict[str, Any]], int]:
         """Fetch usage rows for [start, end), chunked to the bucket-width limit."""
         if bucket_width not in BUCKET_LIMITS:

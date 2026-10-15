@@ -71,13 +71,20 @@ def record_raw_payload(
 def record_collector_run(
     conn: Connection,
     source: str,
-    window_start: str,
-    window_end: str,
+    window_start: str | int,
+    window_end: str | int,
     rows_written: int,
     success: bool,
     error: str | None = None,
 ) -> None:
-    """Record a collector run."""
+    """Record a collector run. Accepts ISO strings or Unix-second integers."""
+    from datetime import UTC, datetime
+
+    def _to_ts(val: str | int) -> str:
+        if isinstance(val, int):
+            return datetime.fromtimestamp(val, tz=UTC).isoformat()
+        return val
+
     conn.execute(
         text(
             """
@@ -89,8 +96,8 @@ def record_collector_run(
         ),
         {
             "source": source,
-            "window_start": window_start,
-            "window_end": window_end,
+            "window_start": _to_ts(window_start),
+            "window_end": _to_ts(window_end),
             "rows_written": rows_written,
             "success": success,
             "error": error,
@@ -101,7 +108,7 @@ def record_collector_run(
 def run_collection(
     conn: Connection,
     source: UsageSource,
-    window: tuple[str, str],
+    window: tuple[str | int, str | int],
     bucket_width: str = "1h",
 ) -> int:
     """Fetch usage, upsert, and record the run. Returns rows written.

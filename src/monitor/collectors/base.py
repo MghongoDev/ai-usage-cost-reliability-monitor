@@ -11,7 +11,7 @@ class UsageSource(Protocol):
     """Read-only access to one provider's usage, cost, and key inventory."""
 
     def fetch_usage(
-        self, window: tuple[str, str], bucket_width: str
+        self, window: tuple[str | int, str | int], bucket_width: str
     ) -> tuple[list[dict[str, Any]], int]:
         """Return (usage rows, unknown field count) for [start, end) at the given bucket width.
 

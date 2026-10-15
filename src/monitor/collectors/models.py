@@ -50,6 +50,36 @@ class UsageReport(BaseModel):
     next_page: str | None = None
 
 
+class OpenAIUsageResult(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    model: str
+    project_id: str | None = None
+    api_key_id: str | None = None
+    input_uncached_tokens: int = 0
+    input_cached_tokens: int = 0
+    input_cache_write_tokens: int = 0
+    output_tokens: int = 0
+    num_model_requests: int | None = None
+
+
+class OpenAIUsageBucket(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    start_time: int
+    end_time: int
+    results: list[OpenAIUsageResult] = Field(default_factory=list)
+
+
+class OpenAIUsageReport(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    object: str = "page"
+    data: list[OpenAIUsageBucket] = Field(default_factory=list)
+    has_more: bool = False
+    next_page: str | None = None
+
+
 def count_unknown_fields(payload: dict[str, Any], model: type[BaseModel]) -> int:
     """Count fields in the payload that the model doesn't define.
 
