@@ -1,0 +1,24 @@
+name: Database backups
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+
+jobs:
+  pg-dump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create pg dump
+        run: |
+          mkdir -p /tmp/dump
+          PGPASSWORD=monitor pg_dump -h ${{ vars.POSTGRES_HOST }} -U ${{ vars.POSTGRES_USER }} -d ${{ vars.POSTGRES_DB }} -f /tmp/dump/monitor-$(date +%Y%m%d-%H%M%S).sql
+
+      - name: Upload pg dump artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pg-dump
+          path: /tmp/dump/
+          retention-days: 7
