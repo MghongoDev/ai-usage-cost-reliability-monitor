@@ -1,0 +1,104 @@
+{
+  "dashboard": {
+    "title": "Overview: Usage, Cost, and Provider Health",
+    "tags": ["overview", "summary"],
+    "refresh": "30s",
+    "time": {
+      "from": "now-24h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "title": "Total Usage by Provider",
+        "datasource": "${datasource}",
+        "targets": [
+          {
+            "refId": "A",
+            "queryType": "timeserie",
+            "expr": "sum(usage_anthropic)",
+            "legendFormat": "Anthropic"
+          },
+          {
+            "refId": "B",
+            "queryType": "timeserie",
+            "expr": "sum(usage_openai)",
+            "legendFormat": "OpenAI"
+          }
+        ],
+        "type": "timeserie"
+      },
+      {
+        "title": "Total Cost by Provider",
+        "datasource": "${datasource}",
+        "targets": [
+          {
+            "refId": "A",
+            "queryType": "timeserie",
+            "expr": "sum(cost_anthropic)",
+            "legendFormat": "Anthropic"
+          },
+          {
+            "refId": "B",
+            "queryType": "timeserie",
+            "expr": "sum(cost_openai)",
+            "legendFormat": "OpenAI"
+          }
+        ],
+        "type": "timeserie"
+      },
+      {
+        "title": "Provider Availability (1h window)",
+        "datasource": "${datasource}",
+        "targets": [
+          {
+            "refId": "A",
+            "queryType": "timeserie",
+            "expr": "avg(availability_anthropic)",
+            "legendFormat": "Anthropic"
+          },
+          {
+            "refId": "B",
+            "queryType": "timeserie",
+            "expr": "avg(availability_openai)",
+            "legendFormat": "OpenAI"
+          }
+        ],
+        "type": "timeserie"
+      },
+      {
+        "title": "SLO Burn Rate (24h)",
+        "datasource": "${datasource}",
+        "targets": [
+          {
+            "refId": "A",
+            "queryType": "timeserie",
+            "expr": "avg(slo_burn_anthropic)",
+            "legendFormat": "Anthropic"
+          },
+          {
+            "refId": "B",
+            "queryType": "timeserie",
+            "expr": "avg(slo_burn_openai)",
+            "legendFormat": "OpenAI"
+          }
+        ],
+        "type": "timeserie"
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "datasource",
+          "type": "datasource",
+          "query": "prometheus",
+          "current": {
+            "refId": "A",
+            "text": "postgres-datasource",
+            "value": "postgres-datasource"
+          },
+          "hide": 0
+        }
+      ]
+    }
+  }
+}

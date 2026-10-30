@@ -10,8 +10,9 @@ from fastapi import FastAPI
 
 from monitor.simulator.anthropic import anthropic_router
 from monitor.simulator.openai import openai_router
+from monitor.simulator.scenarios import active_scenarios
 
-__all__ = ["create_app"]
+__all__ = ["create_app", "active_scenarios"]
 
 
 def create_app() -> FastAPI:

@@ -1,0 +1,13 @@
+# Grafana data source provisioning.
+
+apiVersion: 1
+
+providers:
+  - name: 'default'
+    folder: 'AI Usage Monitor'
+    folderUid: 'ai-usage-monitor'
+    type: file
+    updateIntervalSeconds: 10
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      scheme: file
