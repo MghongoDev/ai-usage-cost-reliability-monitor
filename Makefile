@@ -35,3 +35,8 @@ demo:
 	$(MAKE) up
 	$(MAKE) migrate
 	$(MAKE) backfill
+	$(MAKE) collect
+	$(MAKE) run
+
+keepalive:
+	uv run scripts/keepalive.py
