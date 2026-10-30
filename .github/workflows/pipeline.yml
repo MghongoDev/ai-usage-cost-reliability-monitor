@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  DATABASE_URL: postgresql://monitor:monitor@localhost:55432/monitor
+  DATABASE_URL: postgresql://monitor:***@localhost:55432/monitor
   SIMULATOR_URL: http://localhost:8001
   GRAFANA_ANONYMOUS_READ: "true"
 
@@ -122,3 +122,17 @@ jobs:
             echo "Pipeline completed successfully"
             curl -fsS "${{ secrets.HEALTHCHECKS_IO_URL }}/ok" > /dev/null || true
           fi
+
+  trivy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: "."
+          format: table
+          exit-code: 0
+
