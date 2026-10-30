@@ -33,15 +33,15 @@ issue tracker for the tracer-bullet plan.
 
 | Tracer | Title | State |
 |--------|-------|-------|
-| 08 | SLOs and error-budget burn | 💻 In progress |
-| 09 | Scenario injection on the simulator | 💻 In progress |
-| 10 | Alert lifecycle plus budget-projection rule | 💻 In progress |
-| 11 | Usage-anomaly rule | 💻 In progress |
-| 12 | Remaining rules (new entity, absence, SLO burn, governance) | 💻 In progress |
-| 13 | Backtest harness | ⏳ Deferred |
-| 14 | Grafana provisioning | ⏳ Deferred |
-| 15 | Deploy (Render) | ⏳ Deferred |
-| 16 | Ops hardening (dumps, keepalive, weekly report, runbooks) | ⏳ Deferred |
+| 08 | SLOs and error-budget burn | ✅ Done |
+| 09 | Scenario injection on the simulator | ✅ Done |
+| 10 | Alert lifecycle plus budget-projection rule | ✅ Done |
+| 11 | Usage-anomaly rule | ✅ Done |
+| 12 | Remaining rules (new entity, absence, SLO burn, governance) | ✅ Done |
+| 13 | Backtest harness | ✅ Done |
+| 14 | Grafana provisioning | ✅ Done |
+| 15 | Deploy (Render) | ✅ Done |
+| 16 | Ops hardening (dumps, keepalive, weekly report, runbooks) | ✅ Done |
 
 ## Layout
 
