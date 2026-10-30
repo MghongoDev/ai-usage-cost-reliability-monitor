@@ -23,6 +23,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
+import httpx
 from sqlalchemy import Connection, text
 
 from monitor.db.upsert import budget_projection_query
@@ -234,6 +235,52 @@ def upsert_alert_event(conn: Connection, row: dict) -> None:
             "message": row["message"],
         },
     )
+
+
+def send_slack_alert(
+    webhook_url: str,
+    alert: dict,
+    dashboard_url: str,
+    runbook_url: str,
+) -> None:
+    """Send an alert to Slack via webhook.
+
+    Message includes what happened, where, how much, since when, a dashboard
+    link, and a runbook link.
+    """
+    payload = {
+        "text": f"*ALERT: {alert['rule_id']} - {alert['subject']}\n",
+        "blocks": [
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": (
+                        f"*Rule:* {alert['rule_id']}\n"
+                        f"*Subject:* {alert['subject']}\n"
+                        f"*Severity:* {alert['severity']}\n"
+                        f"*Message:* {alert['message']}\n"
+                        f"*Fired at:* {alert['first_fired_at']}\n"
+                        f"*Dashboard:* <{dashboard_url}|Open Dashboard>\n"
+                        f"*Runbook:* <{runbook_url}|View Runbook>"
+                    ),
+                },
+            }
+        ],
+    }
+    headers = {"Content-Type": "application/json"}
+    response = httpx.post(
+        webhook_url,
+        json=payload,
+        headers=headers,
+        timeout=10,
+    )
+    if response.status_code >= 400:
+        logger.warning(
+            "Slack alert failed: %s - %s",
+            response.status_code,
+            response.text[:200],
+        )
 
 
 def get_firing_alerts(conn: Connection, since: datetime | None = None) -> list[dict]:

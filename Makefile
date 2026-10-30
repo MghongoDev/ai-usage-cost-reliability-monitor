@@ -1,4 +1,4 @@
-.PHONY: install test lint typecheck up down migrate backfill collect run demo
+.PHONY: install test lint typecheck up down migrate backfill collect run demo keepalive weekly-report
 
 install:
 	uv sync
@@ -40,3 +40,6 @@ demo:
 
 keepalive:
 	uv run scripts/keepalive.py
+
+weekly-report:
+	uv run scripts/weekly_report.py
