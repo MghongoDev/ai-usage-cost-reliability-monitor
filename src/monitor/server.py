@@ -75,6 +75,10 @@ class MonitorAPI:
     def _build(self) -> FastAPI:
         app = FastAPI(title="Monitor API", version="0.1.0")
 
+        @app.get("/", tags=["lifecycle"])
+        def root() -> dict[str, str]:
+            return {"status": "ok", "service": "monitor-api"}
+
         @app.get("/health", tags=["lifecycle"])
         def health() -> dict[str, str]:
             if _database_reachable(self._engine):
