@@ -20,7 +20,7 @@ from sqlalchemy.engine import Connection as SAConnection
 import monitor.config as config
 from monitor.collectors import anthropic, openai
 from monitor.collectors.base import UsageSource
-from monitor.db.upsert import run_collection
+from monitor.db.upsert import record_collector_run, run_collection, upsert_usage_rows
 from monitor.probes import runner as probe_runner
 from monitor.rules import alert as alert_rule
 from monitor.rules import remaining as rules_remaining
@@ -243,13 +243,48 @@ def run(
     uvicorn.run(app, host=host, port=port)
 
 
-@app.command()
-def backfill() -> None:
-    """Seed historical usage.
+def _usage_source(provider: str) -> UsageSource:
+    """Build a usage source for a provider (simulator or real API)."""
+    if provider == "anthropic":
+        return anthropic.AnthropicUsageSource(
+            base_url=config.settings.anthropic_base_url,
+            admin_key=nonempty_or_default(config.settings.anthropic_admin_key),
+        )
+    return openai.OpenAIUsageSource(
+        base_url=config.settings.openai_base_url,
+        admin_key=nonempty_or_default(config.settings.openai_admin_key),
+    )
 
-    Not yet implemented; backfilling historical windows is a separate phase.
+
+@app.command()
+def backfill(
+    days: int = typer.Option(90, "--days", "-d", help="Backfill the trailing N days of usage."),
+) -> None:
+    """Re-pull historical usage windows and upsert them idempotently.
+
+    Every run produces the same row counts, so a backfill can be repeated.
     """
-    typer.echo("monitor backfill: not implemented")
+    conn = _connect()
+    try:
+        end = _utcnow()
+        for offset in range(days, 0, -1):
+            start = end - timedelta(days=offset)
+            window = (start.isoformat(), end.isoformat())
+            for provider in PROVIDERS:
+                source = _usage_source(provider)
+                rows, _unknown = source.fetch_usage(window, bucket_width="1h")
+                upsert_usage_rows(conn, rows)
+                record_collector_run(
+                    conn,
+                    source="backfill",
+                    window_start=start.isoformat(),
+                    window_end=end.isoformat(),
+                    rows_written=len(rows),
+                    success=True,
+                )
+        typer.echo(f"[backfill] wrote historical usage for the trailing {days} days")
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":  # pragma: no cover

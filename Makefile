@@ -22,8 +22,8 @@ down:
 migrate:
 	uv run alembic upgrade head
 
-collect:
-	uv run monitor collect
+backfill:
+	uv run monitor backfill
 
 run:
 	uv run monitor run

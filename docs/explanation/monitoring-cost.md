@@ -25,8 +25,10 @@ Models with no price row are marked `unpriced`, never zero.
 
 `reconciliation_query` sums the estimated cost per scope per day and
 compares it to the billed cost in `cost_fact`, returning a percentage
-error. A large, stable error means the price table is missing a model or
-class and should be extended, not that the estimator is wrong.
+A large, stable error means the price table is missing a model or class and
+should be extended, not that the estimator is wrong. Verify the price table
+against a known bill before extending it; a stable error could equally be
+estimator bias.
 
 ## What the billing APIs do not report
 

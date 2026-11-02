@@ -14,8 +14,8 @@ and keeps a single failure from stopping the others.
 
 ```bash
 make collect
-make probe
-make rules
+uv run monitor probe
+uv run monitor rules
 ```
 
 ## Run them in one command

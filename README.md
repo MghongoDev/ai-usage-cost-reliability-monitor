@@ -62,7 +62,7 @@ Copy `.env.example` to `.env` and edit the values. The fields that matter most:
 | `DATABASE_URL` | Postgres connection string | `postgresql://monitor:***@localhost:55432/monitor` |
 | `ANTHROPIC_ADMIN_KEY` / `OPENAI_ADMIN_KEY` | Admin keys; the simulator ignores them | empty |
 | `SLACK_WEBHOOK_URL` | Where alerts are posted; empty means the console sink | empty |
-| `HEALTHCHECKS_PING_URL` | Dead-man's switch ping URL | empty |
+| `HEALTHCHECKS_PING_URL` | Dead-man's switch URL (unused). The scheduler's notify job pings healthchecks via the repository secret `HEALTHCHECKS_IO_URL`. | empty |
 | `SEED` | Simulator seed for reproducible data | `42` |
 
 See [Configuration reference](docs/reference/config.md) for the full list and the
@@ -73,7 +73,8 @@ environment file.
 Tracers 01 through 32 and Phase 1 through 6 are complete. The tracker's only open
 item is issue #1 (Spec), the originating spec for the monitor's control-plane
 HTTP API. See the
-[tracer-bullet plan on GitHub](https://github.com/MghongoDev/ai-usage-cost-reliability-monitor/issues).
+[tracer-bullet plan on GitHub](https://github.com/MghongoDev/ai-usage-cost-reliability-monitor/issues)
+and the [issue tracker docs](docs/agents/issue-tracker.md).
 
 ## Monitoring cost
 

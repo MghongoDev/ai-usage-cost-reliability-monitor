@@ -6,12 +6,12 @@ The deployment and data flow are governed by the ADRs below.
 
 - Source: `docs/adr/0001-gh-actions-cron-render-grafana.md`
 
-GitHub Actions is the scheduler and the builder. A cron workflow runs every
+GitHub Actions is the scheduler and CI runner. A cron workflow runs every
 15 minutes and executes `collect`, `probe`, and `rules` as separate jobs,
 each against a service container running PostgreSQL. A separate free Render
 service runs Grafana and reads the control plane.
 
-The watchful cost is the extra database and network hops per cycle.
+The extra cost is the database and network hops per cycle.
 
 ## ADR 0002: Deployment architecture
 

@@ -18,7 +18,7 @@ Each row carries:
 | --- | --- |
 | provider | anthropic or openai |
 | probed_at | when the probe ran (RFC 3339) |
-| outcome | ok, error, or timeout |
+| outcome | ok, rate_limited, server_error, overloaded, timeout, auth_error, bad_request, network |
 | latency_ms | the measured latency |
 | status_code | the HTTP status returned |
 | model | the model probed |

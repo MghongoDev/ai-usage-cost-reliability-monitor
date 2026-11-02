@@ -27,14 +27,18 @@ The monitor reads its settings from the environment, in
 
 ## Where the settings are used
 
-- The collector uses `DATABASE_URL`, `ANTHROPIC_BASE_URL`,
-  `OPENAI_BASE_URL`, and the two admin keys.
+- The collector, probe, and rules commands use `DATABASE_URL`,
+  `ANTHROPIC_BASE_URL`, `OPENAI_BASE_URL`, and the two admin keys.
 - The scheduler's notify job pings healthchecks via the repository secret
-  `HEALTHCHECKS_IO_URL` (`/ok` on success, `/fail` on failure).
-- The slack webhook and the healthchecks fields are configured but no code
-  in the monitor yet reads them. They are wiring points for a future sink.
+  `HEALTHCHECKS_IO_URL` (`/ok` on success, `/fail` on failure). The
+  `HEALTHCHECKS_PING_URL` config setting is defined but not consumed by
+  monitor code yet.
+- The slack webhook (`SLACK_WEBHOOK_URL`) and healthchecks (`HEALTHCHECKS_PING_URL`)
+  fields are configured but currently unread by monitor code; they are wiring
+  points for a future sink.
 
 ## Related
 
-- The build files (`Makefile`, `pyproject.toml`) declare the commands that
-  run the collector, probe, rules, and control plane.
+- Build and entrypoints are declared in the Makefile and pyproject.toml;
+  the `monitor` CLI subcommand runs the collector, probe, rules, and
+  control plane.
