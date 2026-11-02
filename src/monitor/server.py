@@ -135,12 +135,26 @@ class MonitorAPI:
                            requests, input_uncached, input_cached, cache_creation,
                            output_tokens
                     FROM usage_fact
-                    WHERE bucket_start >= :since
                     ORDER BY bucket_start DESC
                     LIMIT :limit
                     """
                 )
-                rows = _row_dicts(conn, stmt, {"since": since, "limit": limit})
+                variables: dict[str, Any] = {"limit": limit}
+                if since is not None:
+                    stmt = text(
+                        """
+                        SELECT provider, bucket_start, bucket_width,
+                               dims_key,
+                               requests, input_uncached, input_cached, cache_creation,
+                               output_tokens
+                        FROM usage_fact
+                        WHERE bucket_start >= :since
+                        ORDER BY bucket_start DESC
+                        LIMIT :limit
+                        """
+                    )
+                    variables["since"] = since
+                rows = _row_dicts(conn, stmt, variables)
             elif dataset == "cost":
                 stmt = text(
                     """
