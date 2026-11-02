@@ -21,3 +21,8 @@ def create_app() -> FastAPI:
     app.include_router(anthropic_router, prefix="/anthropic")
     app.include_router(openai_router, prefix="/openai")
     return app
+
+
+# Module-level ASGI app instance used by the container entrypoint
+# (uvicorn monitor.simulator.app:app) and any ASGI server.
+app = create_app()

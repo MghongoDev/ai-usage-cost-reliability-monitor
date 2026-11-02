@@ -6,9 +6,9 @@ services:
       POSTGRES_PASSWORD: monitor
       POSTGRES_DB: monitor
     ports:
-      # Host 5432 is taken by a system Postgres; the container publishes on 55432.
-      # Tests and local runs use DATABASE_URL=...localhost:55432.
-      - "55432:5432"
+      # Host 55432 is taken by the system Postgres (/usr/pgsql-18); use a
+      # free host port. The container still publishes its own 5432 internally.
+      - "55434:5432"
     volumes:
       # PG 18+ images want the volume at the parent dir so pg_upgrade works.
       - pgdata:/var/lib/postgresql
@@ -22,7 +22,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: ["uvicorn", "monitor.simulator.app:app", "--host", "0.0.0.0", "--port", "8001"]
     ports:
       - "8001:8001"
     environment:

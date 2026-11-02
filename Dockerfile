@@ -3,7 +3,7 @@ FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 WORKDIR /app
 
 # Install deps first for layer caching
-COPY pyproject.toml .python-version ./
+COPY pyproject.toml README.md .python-version ./
 RUN uv sync --no-dev --no-install-project
 
 COPY src/ src/
