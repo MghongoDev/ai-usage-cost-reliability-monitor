@@ -228,7 +228,7 @@ def run(
         help="Address to bind the control-plane HTTP API.",
     ),
     port: int = typer.Option(
-        8001,
+        8002,
         "--port",
         help="Port to bind the control-plane HTTP API.",
     ),
