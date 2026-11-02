@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy import Connection, text
 
@@ -41,9 +42,9 @@ def _lstamp(ts: datetime) -> str:
 
 def new_entity_rule(
     conn: Connection,
-    snapshots: list[dict],
+    snapshots: list[dict[str, Any]],
     interval_days: int = NAMING_CHECK_DAYS,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Check for new entities (keys or models) in the last interval_days.
 
     Returns a list of alert row dicts for any new entities found.
@@ -88,7 +89,7 @@ def absence_rule(
     subject: str,
     subject_type: str = "key",
     days: int = DORMANT_DAYS,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Check for absence: collector staleness or dormant key.
 
     Returns a list of alert row dicts if the key has been dormant or the
@@ -132,9 +133,7 @@ def absence_rule(
                 "last_notified_at": None,
                 "resolved_at": None,
                 "fire_count": 1,
-                "message": (
-                    f"Key {subject} has no usage in the last {days} days"
-                ),
+                "message": (f"Key {subject} has no usage in the last {days} days"),
             }
         )
 
@@ -145,7 +144,7 @@ def governance_rule(
     conn: Connection,
     provider: str,
     naming_convention: str = r"^[a-z0-9_-]+$",
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Check key names for governance violations.
 
     Returns a list of alert row dicts for keys that violate naming conventions.
@@ -201,7 +200,7 @@ def slo_burn_rule(
     provider: str,
     threshold_pct: float = 5.0,
     window_days: int = 7,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Check SLO error-budget burn rate.
 
     Returns a list of alert row dicts if the SLO burn rate exceeds the
@@ -234,18 +233,14 @@ def slo_burn_rule(
         return []
 
     # Compute the average availability over the window
-    available_metrics = [
-        r.availability_pct for r in rows if r.availability_pct is not None
-    ]
+    available_metrics = [r.availability_pct for r in rows if r.availability_pct is not None]
 
     if not available_metrics:
         # No data - unknown, don't alert
         return []
 
     avg_availability = sum(available_metrics) / len(available_metrics)
-    avg_burn = sum(r.error_budget_burn_pct for r in rows if r.error_budget_burn_pct) / len(
-        rows
-    )
+    avg_burn = sum(r.error_budget_burn_pct for r in rows if r.error_budget_burn_pct) / len(rows)
 
     if avg_burn >= threshold_pct:
         alerts.append(

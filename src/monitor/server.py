@@ -38,8 +38,8 @@ def _row_dicts(conn: Any, stmt: Any, params: dict[str, Any]) -> list[dict[str, A
     return [dict(row) for row in conn.execute(stmt, params).mappings().all()]
 
 
-def _count(conn: Any, stmt: Any, params: dict[str, Any] | None = None) -> int:
-    """Return the row count for a bare SELECT COUNT(...) statement."""
+def count_rows(conn: Any, stmt: Any, params: dict[str, Any] | None = None) -> int:
+    """Return the row count for a given SQL statement."""
     if params:
         return conn.execute(stmt, params).scalar() or 0
     return conn.execute(stmt).scalar() or 0
@@ -280,7 +280,7 @@ class MonitorAPI:
         return {r.provider: (r.n or 0) for r in rows}
 
     def _active_firing(self, conn: Any) -> int:
-        return _count(conn, text("SELECT COUNT(*) FROM alert_event WHERE state = 'firing'"))
+        return count_rows(conn, text("SELECT COUNT(*) FROM alert_event WHERE state = 'firing'"))
 
     def _active_resolved(self, conn: Any) -> int:
-        return _count(conn, text("SELECT COUNT(*) FROM alert_event WHERE state = 'resolved'"))
+        return count_rows(conn, text("SELECT COUNT(*) FROM alert_event WHERE state = 'resolved'"))

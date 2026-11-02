@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy import Connection, text
 
@@ -34,11 +35,7 @@ def _subtract_dates(d: datetime, weeks: int) -> datetime:
 
 def _is_same_hour_of_week(d1: datetime, d2: datetime) -> bool:
     """Return True if the two datetimes are the same hour of the same weekday."""
-    return (
-        d1.weekday() == d2.weekday()
-        and d1.hour == d2.hour
-        and d1.minute == d2.minute
-    )
+    return d1.weekday() == d2.weekday() and d1.hour == d2.hour and d1.minute == d2.minute
 
 
 def _to_dt(ts: str | int) -> datetime:
@@ -104,8 +101,8 @@ def _robust_z_score(value: float, history: list[float]) -> float | None:
     if median == 0:
         return None
 
-    mad = sorted(abs(v - median) for v in history)
-    mad = mad[len(mad) // 2]
+    sorted_abs_dev = sorted(abs(v - median) for v in history)
+    mad = sorted_abs_dev[len(sorted_abs_dev) // 2]
 
     if mad == 0:
         return None
@@ -113,9 +110,7 @@ def _robust_z_score(value: float, history: list[float]) -> float | None:
     return 0.6745 * (value - median) / mad
 
 
-def _find_same_hour_of_week(
-    candidate: datetime, history: list[datetime]
-) -> datetime | None:
+def _find_same_hour_of_week(candidate: datetime, history: list[datetime]) -> datetime | None:
     """Find a datetime in history matching the candidate's hour of week."""
     for h in history:
         if _is_same_hour_of_week(candidate, h):
@@ -134,7 +129,7 @@ def detect_usage_anomalies(
     provider: str = "anthropic",
     bucket_width: str = "1h",
     threshold: float = RULE_ANOMALY_THRESHOLD,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Run the usage-anomaly rule.
 
     Compares current usage on hourly buckets against the same hour of week
@@ -230,10 +225,7 @@ def detect_usage_anomalies(
             if z_score is not None and z_score >= threshold:
                 alerts.append(
                     {
-                        "fingerprint": (
-                            f"usage.anomaly.{provider}."
-                            f"{current_start}"
-                        ),
+                        "fingerprint": (f"usage.anomaly.{provider}.{current_start}"),
                         "rule_id": "usage.anomaly",
                         "subject": cursor.isoformat(),
                         "severity": "critical",
@@ -246,7 +238,7 @@ def detect_usage_anomalies(
                             f"Usage anomaly detected: "
                             f"robust_z={z_score:.2f}, "
                             f"current={current_total}, "
-                            f"history_median={sorted(history_usage)[len(history_usage)//2]}"
+                            f"history_median={sorted(history_usage)[len(history_usage) // 2]}"
                         ),
                     }
                 )

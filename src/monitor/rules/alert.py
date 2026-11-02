@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import httpx
 from sqlalchemy import Connection, text
@@ -50,7 +50,7 @@ def should_fire_alert(
     fire_limit: int,
     resolve_delay: int,
     now: datetime,
-) -> tuple[bool, str, dict]:
+) -> tuple[bool, str, dict[str, Any]]:
     """Determine if an alert should fire.
 
     Checks for existing alert state, evaluates the new condition, and
@@ -136,7 +136,7 @@ def evaluate_budget_projection_rule(
     budget_usd: float,
     threshold_pct: float = 0.8,
     now: datetime | None = None,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Evaluate the budget-projection rule for a scope.
 
     Checks if the projected month-end spend exceeds the budget (at the
@@ -198,7 +198,7 @@ def evaluate_budget_projection_rule(
     return []
 
 
-def upsert_alert_event(conn: Connection, row: dict) -> None:
+def upsert_alert_event(conn: Connection, row: dict[str, Any]) -> None:
     """Insert or update an alert_event row."""
     conn.execute(
         text(
@@ -239,7 +239,7 @@ def upsert_alert_event(conn: Connection, row: dict) -> None:
 
 def send_slack_alert(
     webhook_url: str,
-    alert: dict,
+    alert: dict[str, Any],
     dashboard_url: str,
     runbook_url: str,
 ) -> None:
@@ -283,7 +283,7 @@ def send_slack_alert(
         )
 
 
-def get_firing_alerts(conn: Connection, since: datetime | None = None) -> list[dict]:
+def get_firing_alerts(conn: Connection, since: datetime | None = None) -> list[dict[str, Any]]:
     """Get all alerts currently in the firing state."""
     if since is None:
         since = datetime.now(UTC) - timedelta(hours=24)

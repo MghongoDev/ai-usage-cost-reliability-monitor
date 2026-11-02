@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta
+from typing import Any
 
 from sqlalchemy import Connection, text
 
@@ -53,9 +54,7 @@ def compute_slow_window() -> timedelta:
     return timedelta(hours=24)
 
 
-def compute_error_budget_burn(
-    total_budget_pct: float, remaining_budget_pct: float
-) -> float:
+def compute_error_budget_burn(total_budget_pct: float, remaining_budget_pct: float) -> float:
     """Compute the proportion of the monthly error budget already spent.
 
     Args:
@@ -180,8 +179,8 @@ def SLOW_WINDOW_START(outcome_time: str, now: datetime) -> bool:
 
 
 def get_sloe_metrics(
-    conn: Connection, provider: str, slo_name: AVAILABILITY_SLO = AVAILABILITY_SLO
-) -> list[dict]:
+    conn: Connection, provider: str, slo_name: str = AVAILABILITY_SLO
+) -> list[dict[str, Any]]:
     """Fetch SLO metrics for a provider, most recent first."""
     rows = conn.execute(
         text(
@@ -209,13 +208,11 @@ def get_sloe_metrics(
     ]
 
 
-def availability_below_threshold(
-    metrics: list[dict], threshold_pct: float
-) -> bool:
+def availability_below_threshold(metrics: list[dict[str, Any]], threshold_pct: float) -> bool:
     """Check if any recent SLO metric is below the threshold."""
     if not metrics:
         return True  # No data: treat as below threshold (unknown is bad)
     for m in metrics:
         if m["availability_pct"] is not None:
-            return m["availability_pct"] < threshold_pct
+            return bool(m["availability_pct"] < threshold_pct)
     return False

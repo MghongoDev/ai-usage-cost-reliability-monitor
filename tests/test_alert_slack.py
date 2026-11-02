@@ -5,12 +5,9 @@ alert fires, including what happened, where, how much, since when, a dashboard
 link, and a runbook link.
 """
 
-import logging
-
 from unittest.mock import patch
 
 import httpx
-import pytest
 
 from monitor.rules.alert import send_slack_alert
 

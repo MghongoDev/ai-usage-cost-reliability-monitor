@@ -130,9 +130,7 @@ def active_scenarios(now: str) -> list[dict[str, Any]]:
     now_dt = datetime.fromisoformat(now.replace("Z", "+00:00")).astimezone(UTC)
     active = []
     for scenario in DEFAULT_SCENARIOS:
-        start_dt = datetime.fromisoformat(
-            scenario["start"].replace("Z", "+00:00")
-        ).astimezone(UTC)
+        start_dt = datetime.fromisoformat(scenario["start"].replace("Z", "+00:00")).astimezone(UTC)
         end_dt = start_dt + duration_to_timedelta(scenario.get("duration", "1h"))
         if start_dt <= now_dt < end_dt:
             active.append(scenario)

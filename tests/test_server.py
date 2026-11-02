@@ -50,6 +50,14 @@ def _seed() -> None:
     conn = _engine.connect()
     try:
         with conn.begin():
+            # Seed param aliases: p=provider b=bucket_start w=bucket_width s=scope_id
+            # k=api_key_id m=model r=requests i=input_uncached c=input_cached
+            # ca=cache_creation o=output_tokens
+            # cost: d=day l=line_item a=amount_usd dsc=description t=cost_type
+            # probe: t=probed_at o=outcome l=latency_ms s=status_code m=model
+            # i=input_tokens o2=output_tokens a=attempt_count
+            # alert: f=fingerprint r=rule_id s=subject sv=severity st=state
+            # f1=first_fired_at l1=last_notified_at r1=resolved_at c=fire_count m=message
             conn.execute(text("TRUNCATE usage_fact, cost_fact, probe_result, alert_event"))
             _seed_usage(
                 conn,

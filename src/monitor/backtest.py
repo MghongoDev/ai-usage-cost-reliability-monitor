@@ -82,7 +82,7 @@ def run_backtest(seed: int = 42) -> dict[str, Any]:
     """
     # For now, this is a placeholder that returns an empty scenario list.
     # Implementation would load scenarios.yaml and run each scenario.
-    scenario_results = []
+    scenario_results: list[dict[str, Any]] = []
 
     # Run clean period
     clean_result = _run_clean_period()

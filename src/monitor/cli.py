@@ -32,6 +32,8 @@ DEFAULT_MODEL = "claude-haiku-5-5"
 COLLECT_WINDOW_DAYS = 1
 RULE_WINDOW_HOURS = 1
 
+PROVIDERS = ("anthropic", "openai")
+
 _engine: Engine | None = None
 
 
@@ -51,8 +53,8 @@ def _utcnow() -> datetime:
     return datetime.now(UTC)
 
 
-def _admin_key(key: str) -> str:
-    """Return a non-empty admin key for the simulator (any non-empty string passes)."""
+def nonempty_or_default(key: str) -> str:
+    """Return a usable admin key: the supplied key, or a default if empty."""
     return key or "monitor"
 
 
@@ -96,12 +98,12 @@ def _collect_provider(conn: SAConnection, provider: str, days: int) -> None:
     if provider == "anthropic":
         source = anthropic.AnthropicUsageSource(
             base_url=config.settings.anthropic_base_url,
-            admin_key=_admin_key(config.settings.anthropic_admin_key),
+            admin_key=nonempty_or_default(config.settings.anthropic_admin_key),
         )
     else:
         source = openai.OpenAIUsageSource(
             base_url=config.settings.openai_base_url,
-            admin_key=_admin_key(config.settings.openai_admin_key),
+            admin_key=nonempty_or_default(config.settings.openai_admin_key),
         )
     end = _utcnow()
     start = end - timedelta(days=days)
@@ -119,7 +121,7 @@ def probe() -> None:
             ("openai", config.settings.openai_base_url),
         )
         for provider, base_url in jobs:
-            api_key = _admin_key(getattr(config.settings, f"{provider}_admin_key"))
+            api_key = nonempty_or_default(getattr(config.settings, f"{provider}_admin_key"))
             runner = probe_runner.ProbeRunner(
                 base_url=base_url,
                 api_key=api_key,
@@ -145,7 +147,7 @@ def rules(window_hours: int = typer.Option(RULE_WINDOW_HOURS, "--window-hours", 
         window = (start.isoformat(), end.isoformat())
 
         # usage-anomaly rule (Tracer 11): robust z-score on hourly buckets.
-        for provider in ("anthropic", "openai"):
+        for provider in PROVIDERS:
             try:
                 for row in detect_usage_anomalies(
                     conn, window, provider=provider, bucket_width="1h"
@@ -177,7 +179,7 @@ def rules(window_hours: int = typer.Option(RULE_WINDOW_HOURS, "--window-hours", 
             typer.echo(f"[rules] new_entity skipped: {exc}")
 
         # absence rule for each provider.
-        for provider in ("anthropic", "openai"):
+        for provider in PROVIDERS:
             for key_id, _ in _distinct_keys(conn, provider):
                 try:
                     for row in rules_remaining.absence_rule(
@@ -188,7 +190,7 @@ def rules(window_hours: int = typer.Option(RULE_WINDOW_HOURS, "--window-hours", 
                     typer.echo(f"[rules] absence for {provider}:{key_id} skipped: {exc}")
 
         # governance rule for each provider.
-        for provider in ("anthropic", "openai"):
+        for provider in PROVIDERS:
             try:
                 for row in rules_remaining.governance_rule(conn, provider=provider):
                     _persist_alert(conn, row)

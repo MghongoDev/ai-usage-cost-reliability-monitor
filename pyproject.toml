@@ -19,6 +19,9 @@ dependencies = [
     "uvicorn>=0.30",
 ]
 
+[project.scripts]
+monitor = "monitor.cli:app"
+
 [dependency-groups]
 dev = [
     "mypy>=1.10",

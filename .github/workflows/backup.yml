@@ -2,20 +2,37 @@ name: Database backups
 
 on:
   schedule:
+    # 02:00 UTC nightly. Hours of 0 are 10 PM ET previous day.
     - cron: "0 2 * * *"
   workflow_dispatch:
 
 jobs:
   pg-dump:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: monitor
+          POSTGRES_PASSWORD: monitor
+          POSTGRES_DB: monitor
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
-
       - name: Create pg dump
         run: |
           mkdir -p /tmp/dump
-          PGPASSWORD=monitor pg_dump -h ${{ vars.POSTGRES_HOST }} -U ${{ vars.POSTGRES_USER }} -d ${{ vars.POSTGRES_DB }} -f /tmp/dump/monitor-$(date +%Y%m%d-%H%M%S).sql
-
+          # Dump the CI Postgres service. To backup a deployed (Render) database
+          # instead, point this at that host and put its connection string in the
+          # POSTGRES_URL repository variable, then use: pg_dump "$POSTGRES_URL".
+          PGPASSWORD=monitor pg_dump -h postgres -U monitor -d monitor \
+            -f /tmp/dump/monitor-$(date +%Y%m%d-%H%M%S).sql
       - name: Upload pg dump artifact
         uses: actions/upload-artifact@v4
         with:
