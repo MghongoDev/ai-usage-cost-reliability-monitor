@@ -227,19 +227,16 @@ class MonitorAPI:
 
     def _digest(self) -> str:
         lines: list[str] = [
-            "# HELP monitor_uptime_seconds Time since this process started.",
-            "# TYPE monitor_uptime_seconds gauge",
-            f"monitor_uptime_seconds {self._uptime()}\n",
             "# HELP monitor_usage_rows Total usage rows persisted, per collector.",
             f"# TYPE {_USAGE_ROWS} counter",
-            "# HELP monitor_cost_usd Estimated spend in USD, per collector.",
-            f"# TYPE {_COST_USD} gauge",
-            "# HELP monitor_probe_ok Probe outcomes classified ok.",
-            f"# TYPE {_PROBE_OK} gauge",
+            "# HELP monitor_cost_usd Estimated spend in USD, per collector (cumulative).",
+            f"# TYPE {_COST_USD} counter",
+            "# HELP monitor_probe_ok Probe outcomes classified ok, per collector.",
+            f"# TYPE {_PROBE_OK} counter",
             "# HELP monitor_probe_total Probe attempts, per collector.",
-            f"# TYPE {_PROBE_TOTAL} gauge",
+            f"# TYPE {_PROBE_TOTAL} counter",
             "# HELP monitor_active_alerts Open (non-resolved) alert events.",
-            f"# TYPE {_ACTIVE_ALERTS} gauge",
+            f"# TYPE {_ACTIVE_ALERTS} counter",
         ]
         with self._connect() as conn:
             for provider in ("anthropic", "openai"):

@@ -231,13 +231,12 @@ class TestMetrics:
         response = _client(api).get("/metrics")
         assert response.status_code == 200
         text = response.text
-        assert text.startswith("# HELP monitor_uptime_seconds")
-        assert "monitor_uptime_seconds" in text
+        assert text.startswith("# HELP monitor_usage_rows")
         assert "# TYPE monitor_usage_rows counter" in text
-        assert "# TYPE monitor_cost_usd gauge" in text
-        assert "# TYPE monitor_probe_ok gauge" in text
-        assert "# TYPE monitor_probe_total gauge" in text
-        assert f"# TYPE {_ACTIVE_ALERTS_FAMILY} gauge" in text
+        assert "# TYPE monitor_cost_usd counter" in text
+        assert "# TYPE monitor_probe_ok counter" in text
+        assert "# TYPE monitor_probe_total counter" in text
+        assert f"# TYPE {_ACTIVE_ALERTS_FAMILY} counter" in text
 
     def test_usage_rows_counted_per_provider(self, api: MonitorAPI, seeded: None) -> None:
         response = _client(api).get("/metrics")
