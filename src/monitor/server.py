@@ -16,9 +16,9 @@ import logging
 import time
 from typing import Any
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import PlainTextResponse
-from sqlalchemy import create_engine, text
+from sqlalchemy import Engine, create_engine, text
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +45,16 @@ def count_rows(conn: Any, stmt: Any, params: dict[str, Any] | None = None) -> in
     return conn.execute(stmt).scalar() or 0
 
 
+def _database_reachable(engine: Engine) -> bool:
+    """Return True only if *engine* can complete a query against the DB."""
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return True
+    except Exception:
+        return False
+
+
 class MonitorAPI:
     """FastAPI application serving the monitor's collected data.
 
@@ -67,7 +77,11 @@ class MonitorAPI:
 
         @app.get("/health", tags=["lifecycle"])
         def health() -> dict[str, str]:
-            return {"status": "ok", "database": "reachable"}
+            if _database_reachable(self._engine):
+                return {"status": "ok", "database": "reachable"}
+            raise HTTPException(
+                status_code=503, detail={"status": "error", "database": "unreachable"}
+            )
 
         @app.get("/metrics", tags=["observability"])
         def metrics() -> PlainTextResponse:
