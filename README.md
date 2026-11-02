@@ -1,8 +1,14 @@
 # AI Usage, Cost, and Reliability Monitor
 
-A self-hosted monitor for an organization's AI platforms. It pulls usage, cost, and key inventory from the Anthropic and OpenAI admin APIs, runs its own canary probes to measure availability and latency (which the billing APIs don't report), attributes cost down to the API-key level, and alerts when spend, usage, or reliability looks wrong, with every alert linked to a runbook.
+A self-hosted monitor for an organization's AI platforms. It pulls usage, cost,
+and key inventory from the Anthropic and OpenAI admin APIs, runs its own canary
+probes to measure availability and latency, attributes cost down to the API-key
+level, and raises alerts when spend, usage, or reliability looks wrong. Each
+alert links to a runbook.
 
-**Simulator-first.** No vendor admin keys are required. A bundled simulator mimics both providers' admin and message endpoints, including their awkward behaviors, so the whole system runs from a fresh clone.
+**Simulator-first.** No vendor admin keys are required. A bundled simulator
+imitates both providers' admin and usage endpoints, including their awkward
+behaviors, so the system runs from a fresh clone.
 
 ## Quick start
 
@@ -12,64 +18,64 @@ make up          # Postgres via docker compose
 make migrate     # alembic upgrade head
 ```
 
-The simulator, collectors, and dashboards are under construction; see the
-issue tracker for the tracer-bullet plan.
+Then run the loop end to end:
 
-## Status
+```bash
+make demo        # up, migrate, collect, run the control plane
+```
 
-**Completed (Tracers 01-07, issues #8-#14):**
+`make demo` serves the HTTP control plane on `http://127.0.0.1:8001`. See the
+[Quick start](docs/tutorials/quickstart.md) tutorial for a step-by-step
+walkthrough, and [First collection cycle](docs/tutorials/first-collection-cycle.md)
+for a working example.
 
-| Tracer | Title | State |
-|--------|-------|-------|
-| 01 | Normalized schema and migrations | [x] Done |
-| 02 | Anthropic usage, end to end | [x] Done |
-| 03 | OpenAI usage, end to end | [x] Done |
-| 04 | Key and scope inventory, both providers | [x] Done |
-| 05 | Price table and per-key cost estimation | [x] Done |
-| 06 | Reconciliation and budgets | [x] Done |
-| 07 | Probe runner and availability | [x] Done |
+## What it does
 
-**In progress (Tracers 08-16, issues #15-#23):**
+| Concern | Source |
+| --- | --- |
+| Usage and token counts | Anthropic / OpenAI usage reports |
+| Cost, in USD | Anthropic / OpenAI cost reports |
+| Key and scope inventory | Admin API key and workspace listings |
+| Availability and latency | Canary probes against each provider |
+| Per-key cost estimate | Usage x the price table, reconciled against cost reports |
+| Alerts on spend, usage, or reliability | Rule set evaluated on a rolling window |
 
-| Tracer | Title | State |
-|--------|-------|-------|
-| 08 | SLOs and error-budget burn | [x] Done |
-| 09 | Scenario injection on the simulator | [x] Done |
-| 10 | Alert lifecycle plus budget-projection rule | [x] Done |
-| 11 | Usage-anomaly rule | [x] Done |
-| 12 | Remaining rules (new entity, absence, SLO burn, governance) | [x] Done |
-| 13 | Backtest harness | [x] Done |
-| 14 | Grafana provisioning | [x] Done |
-| 15 | Deploy (Render) | [x] Done |
-| 16 | Ops hardening (dumps, keepalive, weekly report, runbooks) | [x] Done |
+## Architecture
 
-**In progress (Tracers 17-23, issues #24-#32):**
+- `src/monitor/` — the monitor package: CLI, database, collectors, probes, rules,
+  and the HTTP control plane.
+- `src/monitor/simulator/` — the bundled provider simulator.
+- `migrations/` — Alembic migrations for the database schema.
+- `docs/` — this documentation set (tutorials, how-to guides, reference, explanation).
+- `GLOSSARY.md` — domain vocabulary.
 
-| Tracer | Title | State |
-|--------|-------|-------|
-| 17 | Deployment — GitHub Actions scheduler, Render services, healthchecks, pg_dump, keepalive, weekly report | [in progress] |
-| 18 | Phase 6 — CI/CD pipeline, Trivy, complete documentation | [in progress] |
-| 19 | CI/CD pipeline — GitHub Actions workflow steps | [in progress] |
-| 20 | CI quality gates — ruff, mypy, pytest | [in progress] |
-| 21 | Documentation set — API notes, ADR log, glossary, deployment guide, runbooks | [in progress] |
-| 22 | Security — dependency map, read-only Grafana role, audit | [in progress] |
-| 23 | Alerting — runbooks, Slack sink, alert resolve behavior | [in progress] |
-| 24 | Operations — keepalive commit, weekly report, demo mode | [in progress] |
-| 25 | Alerting quality — backtest evaluation report, known misses | [in progress] |
+The GitHub Actions scheduler runs `collect`, `probe`, and `rules` on a cron. A
+separate free Render service hosts Grafana and reads the control plane. The
+scheduler also pings a dead-man's switch when a cycle completes without error.
 
-## Layout
+## Configuration
 
-- `src/monitor/` — the monitor package
-- `migrations/` — Alembic migrations
-- `docs/` — API research notes, ADRs, agent configuration, Grafana provisioning
-- `GLOSSARY.md` — domain vocabulary
+Copy `.env.example` to `.env` and edit the values. The fields that matter most:
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `DATABASE_URL` | Postgres connection string | `postgresql://monitor:***@localhost:55432/monitor` |
+| `ANTHROPIC_ADMIN_KEY` / `OPENAI_ADMIN_KEY` | Admin keys; the simulator ignores them | empty |
+| `SLACK_WEBHOOK_URL` | Where alerts are posted; empty means the console sink | empty |
+| `HEALTHCHECKS_PING_URL` | Dead-man's switch ping URL | empty |
+| `SEED` | Simulator seed for reproducible data | `42` |
+
+See [Configuration reference](docs/reference/config.md) for the full list and the
+environment file.
+
+## Project status
+
+Tracers 01 through 32 and Phase 1 through 6 are complete. The tracker's only open
+item is issue #1 (Spec), the originating spec for the monitor's control-plane
+HTTP API. See the
+[tracer-bullet plan on GitHub](https://github.com/MghongoDev/ai-usage-cost-reliability-monitor/issues).
 
 ## Monitoring cost
 
-The deployed instance runs on Render free tiers and GitHub Actions; the approximate
-monthly cost is **$0** (free tier). The README states this because the guide asks
-for a rough monthly cost figure.
-
-## Issue tracker
-
-See the [tracer-bullet plan on GitHub](https://github.com/MghongoDev/ai-usage-cost-reliability-monitor/issues).
+The deployed instance runs on Render free tiers and GitHub Actions, so the
+approximate monthly cost is $0.

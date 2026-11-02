@@ -22,9 +22,6 @@ down:
 migrate:
 	uv run alembic upgrade head
 
-backfill:
-	uv run monitor backfill --days 90
-
 collect:
 	uv run monitor collect
 
@@ -34,7 +31,6 @@ run:
 demo:
 	$(MAKE) up
 	$(MAKE) migrate
-	$(MAKE) backfill
 	$(MAKE) collect
 	$(MAKE) run
 
