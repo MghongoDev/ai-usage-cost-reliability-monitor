@@ -49,7 +49,11 @@ jobs:
         run: make migrate
       - name: Start simulator
         run: |
-          nohup uv run uvicorn monitor.simulator.app:app --port 8001 > simulator.log 2>&1 &
+          # Run from the venv, not through `uv run`: a live `uv run` holds the
+          # uv cache lock, and setup-uv's post step then hangs on cache prune.
+          nohup .venv/bin/python -m uvicorn monitor.simulator.app:app --port 8001 \
+            > simulator.log 2>&1 &
+          echo $! > simulator.pid
           for _ in $(seq 1 30); do
             curl -s -o /dev/null localhost:8001/ && exit 0
             sleep 1
@@ -62,6 +66,9 @@ jobs:
         run: make probe
       - name: Evaluate rules
         run: make rules
+      - name: Stop simulator
+        if: always()
+        run: if [ -f simulator.pid ]; then kill "$(cat simulator.pid)" || true; fi
       - name: Upload simulator log
         if: failure()
         uses: actions/upload-artifact@v4
