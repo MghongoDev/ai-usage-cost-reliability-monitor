@@ -84,9 +84,11 @@ def collect(
     """Fetch usage and inventory from the providers into the data store."""
     conn = _connect()
     try:
-        providers = ("all",)
-        if provider in ("anthropic", "openai"):
+        providers: tuple[str, ...] = tuple(PROVIDERS)
+        if provider in PROVIDERS:
             providers = (provider,)
+        elif provider != "all":
+            raise typer.BadParameter(f"unknown provider {provider!r}")
         for p in providers:
             _collect_provider(conn, p, days)
     finally:
