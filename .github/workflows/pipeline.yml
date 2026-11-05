@@ -1,23 +1,28 @@
 name: Pipeline
 
+# The scheduled cycle (ADR-0001): collect, probe, and evaluate rules, then
+# ping the dead-man's switch. Until the deployed database exists, the cycle
+# runs against a fresh Postgres service and a simulator started in the job,
+# so it proves the cycle runs end to end but keeps no history.
+
 on:
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch:
 
+concurrency:
+  group: pipeline
+  cancel-in-progress: false
+
 env:
-  # CI runs against a PostgreSQL service container started by this workflow
-  # (the job container reaches it on the service name `postgres` on port 5432).
-  # The password here must match POSTGRES_PASSWORD below.
-  DATABASE_URL: postgresql://monitor:monitor@postgres:5432/monitor
-  SIMULATOR_URL: http://localhost:8001
-  GRAFANA_ANONYMOUS_READ: "true"
+  DATABASE_URL: postgresql://monitor:monitor@localhost:5432/monitor
+  ANTHROPIC_BASE_URL: http://localhost:8001/anthropic
+  OPENAI_BASE_URL: http://localhost:8001/openai
 
 jobs:
-  collect-anthropic:
+  cycle:
     runs-on: ubuntu-latest
-    env:
-      PROVIDER: anthropic
+    timeout-minutes: 10
     services:
       postgres:
         image: postgres:18-alpine
@@ -40,212 +45,49 @@ jobs:
           enable-cache: true
       - name: Install dependencies
         run: make install
-      - name: Run collectors
-        run: make collect
-      - name: Upload collectors run artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: collectors-run
-          path: /tmp/collectors-run.json
-          retention-days: 3
-
-  collect-openai:
-    runs-on: ubuntu-latest
-    env:
-      PROVIDER: openai
-    services:
-      postgres:
-        image: postgres:18-alpine
-        env:
-          POSTGRES_USER: monitor
-          POSTGRES_PASSWORD: monitor
-          POSTGRES_DB: monitor
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v4
-        with:
-          python-version: "3.12"
-          enable-cache: true
-      - name: Install dependencies
-        run: make install
-      - name: Run collectors
-        run: make collect
-      - name: Upload collectors run artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: collectors-run
-          path: /tmp/collectors-run.json
-          retention-days: 3
-
-  probe:
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:18-alpine
-        env:
-          POSTGRES_USER: monitor
-          POSTGRES_PASSWORD: monitor
-          POSTGRES_DB: monitor
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v4
-        with:
-          python-version: "3.12"
-          enable-cache: true
-      - name: Install dependencies
-        run: make install
-      - name: Run probes
-        run: make probe
-
-  rules:
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:18-alpine
-        env:
-          POSTGRES_USER: monitor
-          POSTGRES_PASSWORD: monitor
-          POSTGRES_DB: monitor
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v4
-        with:
-          python-version: "3.12"
-          enable-cache: true
-      - name: Install dependencies
-        run: make install
-      - name: Run rules
-        run: make rules
-
-  quality-gates:
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:18-alpine
-        env:
-          POSTGRES_USER: monitor
-          POSTGRES_PASSWORD: monitor
-          POSTGRES_DB: monitor
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v4
-        with:
-          python-version: "3.12"
-          enable-cache: true
-      - name: Install dependencies
-        run: make install
-      - name: Run migrate
+      - name: Migrate
         run: make migrate
-      - name: Run lint
-        run: make lint
-      - name: Run typecheck
-        run: make typecheck
-      - name: Run tests
-        run: make test
-      - name: Upload coverage artifact
+      - name: Start simulator
+        run: |
+          # Run from the venv, not through `uv run`: a live `uv run` holds the
+          # uv cache lock, and setup-uv's post step then hangs on cache prune.
+          nohup .venv/bin/python -m uvicorn monitor.simulator.app:app --port 8001 \
+            > simulator.log 2>&1 &
+          echo $! > simulator.pid
+          for _ in $(seq 1 30); do
+            curl -s -o /dev/null localhost:8001/ && exit 0
+            sleep 1
+          done
+          cat simulator.log
+          exit 1
+      - name: Collect
+        run: make collect
+      - name: Probe
+        run: make probe
+      - name: Evaluate rules
+        run: make rules
+      - name: Stop simulator
         if: always()
+        run: if [ -f simulator.pid ]; then kill "$(cat simulator.pid)" || true; fi
+      - name: Upload simulator log
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage
-          path: htmlcov/
-          retention-days: 7
-
-  dump:
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:18-alpine
+          name: simulator-log
+          path: simulator.log
+          retention-days: 3
+      - name: Ping dead-man's switch
+        if: always()
         env:
-          POSTGRES_USER: monitor
-          POSTGRES_PASSWORD: monitor
-          POSTGRES_DB: monitor
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
-    steps:
-      - uses: actions/checkout@v4
-      - name: Create pg dump
+          HC_URL: ${{ secrets.HEALTHCHECKS_IO_URL }}
+          JOB_STATUS: ${{ job.status }}
         run: |
-          mkdir -p /tmp/dump
-          PGPASSWORD=monitor pg_dump -h localhost -U monitor -d monitor \
-            -f /tmp/dump/monitor-$(date +%Y%m%d-%H%M%S).sql
-      - name: Upload pg dump artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: pg-dump
-          path: /tmp/dump/
-          retention-days: 7
-
-  notify:
-    runs-on: ubuntu-latest
-    if: always()
-    needs:
-      - collect-anthropic
-      - collect-openai
-      - probe
-      - rules
-      - quality-gates
-      - dump
-    steps:
-      - name: Notify failure
-        run: |
-          # Dead-man's switch: if any previous job failed, ping healthchecks.io.
-          if [ "${{ needs.collect-anthropic.result }}" != 'success' ] || \
-             [ "${{ needs.collect-openai.result }}" != 'success' ] || \
-             [ "${{ needs.probe.result }}" != 'success' ] || \
-             [ "${{ needs.rules.result }}" != 'success' ] || \
-             [ "${{ needs.quality-gates.result }}" != 'success' ] || \
-             [ "${{ needs.dump.result }}" != 'success' ]; then
-            echo "Pipeline failed - monitor may be down"
-            curl -fsS "${{ secrets.HEALTHCHECKS_IO_URL }}/fail" > /dev/null || true
-          else
-            echo "Pipeline completed successfully"
-            curl -fsS "${{ secrets.HEALTHCHECKS_IO_URL }}/ok" > /dev/null || true
+          if [ -z "$HC_URL" ]; then
+            echo "HEALTHCHECKS_IO_URL not set; skipping ping"
+            exit 0
           fi
-
-  trivy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: fs
-          scan-ref: "."
-          format: table
-          exit-code: 0
-
+          if [ "$JOB_STATUS" = "success" ]; then
+            curl -fsS --retry 3 "$HC_URL" > /dev/null
+          else
+            curl -fsS --retry 3 "$HC_URL/fail" > /dev/null
+          fi

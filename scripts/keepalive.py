@@ -12,7 +12,6 @@ def _run(cmd: list[str], check: bool = True) -> subprocess.CompletedProcess:
 
 
 def main() -> int:
-    tag = "keepalive"
     ts = subprocess.run(
         ["date", "+%Y-%m-%d %H:%M:%S"],
         check=True,
