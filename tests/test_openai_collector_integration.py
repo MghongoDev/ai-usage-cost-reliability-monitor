@@ -99,7 +99,7 @@ class TestOpenAICollectorIdempotency:
                     " FROM collector_run ORDER BY id DESC LIMIT 1"
                 )
             ).fetchone()
-            assert run.source == "anthropic.usage"  # run_collection hardcodes this for now
+            assert run.source == "openai.usage"
             assert run.rows_written == rows_written
             assert run.success is True
 

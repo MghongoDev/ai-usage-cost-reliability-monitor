@@ -6,6 +6,9 @@ Commands:
 - rules      Evaluate the rule set over recent state and fire alerts.
 - run        Run the monitor's HTTP API (planned: separate phase).
 - backfill   Seed historical usage (planned: separate phase).
+
+Issue: #35. Writing commands own a transaction that commits on success and
+rolls back on failure, so a completed command leaves rows behind.
 """
 
 from __future__ import annotations
@@ -20,7 +23,13 @@ from sqlalchemy.engine import Connection as SAConnection
 import monitor.config as config
 from monitor.collectors import anthropic, openai
 from monitor.collectors.base import UsageSource
-from monitor.db.upsert import record_collector_run, run_collection, upsert_usage_rows
+from monitor.db.upsert import (
+    record_collector_run,
+    run_collection,
+    upsert_cost_rows,
+    upsert_key_inventory_rows,
+    upsert_usage_rows,
+)
 from monitor.probes import runner as probe_runner
 from monitor.rules import alert as alert_rule
 from monitor.rules import remaining as rules_remaining
@@ -42,11 +51,6 @@ def _database_engine() -> Engine:
     if _engine is None:
         _engine = create_engine(config.settings.database_url)
     return _engine
-
-
-def _connect() -> SAConnection:
-    """Open a connection from the pooled engine (SQLAlchemy style)."""
-    return _database_engine().connect()
 
 
 def _utcnow() -> datetime:
@@ -79,11 +83,10 @@ def collect(
         case_sensitive=False,
         help="Provider to collect: anthropic, openai, or all.",
     ),
-    days: int = typer.Option(1, "--days", "-d", help="Collect the last N days of usage."),
+    days: int = typer.Option(2, "--days", "-d", help="Collect the trailing N days (2 = 48 hours)."),
 ) -> None:
     """Fetch usage and inventory from the providers into the data store."""
-    conn = _connect()
-    try:
+    with _database_engine().begin() as conn:
         providers: tuple[str, ...] = tuple(PROVIDERS)
         if provider in PROVIDERS:
             providers = (provider,)
@@ -91,8 +94,6 @@ def collect(
             raise typer.BadParameter(f"unknown provider {provider!r}")
         for p in providers:
             _collect_provider(conn, p, days)
-    finally:
-        conn.close()
 
 
 def _collect_provider(conn: SAConnection, provider: str, days: int) -> None:
@@ -109,15 +110,19 @@ def _collect_provider(conn: SAConnection, provider: str, days: int) -> None:
         )
     end = _utcnow()
     start = end - timedelta(days=days)
-    rows = run_collection(conn, source, (start.isoformat(), end.isoformat()))
-    typer.echo(f"[collect] {provider}: wrote {rows} usage rows")
+    window = (start.isoformat(), end.isoformat())
+    rows = run_collection(conn, source, window)
+    cost_rows = upsert_cost_rows(conn, source.fetch_costs(window))
+    key_rows = upsert_key_inventory_rows(conn, source.list_keys())
+    typer.echo(
+        f"[collect] {provider}: wrote {rows} usage rows, {cost_rows} cost rows, {key_rows} key rows"
+    )
 
 
 @app.command()
 def probe() -> None:
     """Run canary probes against each provider and store the results."""
-    conn = _connect()
-    try:
+    with _database_engine().begin() as conn:
         jobs = (
             ("anthropic", config.settings.anthropic_base_url),
             ("openai", config.settings.openai_base_url),
@@ -135,15 +140,12 @@ def probe() -> None:
                 f"[probe] {provider}: {result['outcome']} "
                 f"({result['latency_ms']}ms, status {result['status_code']})"
             )
-    finally:
-        conn.close()
 
 
 @app.command()
 def rules(window_hours: int = typer.Option(RULE_WINDOW_HOURS, "--window-hours", "-w")) -> None:
     """Evaluate the rule set over recent state and persist alert events."""
-    conn = _connect()
-    try:
+    with _database_engine().begin() as conn:
         end = _utcnow()
         start = end - timedelta(hours=window_hours)
         window = (start.isoformat(), end.isoformat())
@@ -200,8 +202,6 @@ def rules(window_hours: int = typer.Option(RULE_WINDOW_HOURS, "--window-hours", 
                 typer.echo(f"[rules] governance for {provider} skipped: {exc}")
 
         typer.echo(f"[rules] evaluated window {start.isoformat()}..{end.isoformat()}")
-    finally:
-        conn.close()
 
 
 def _persist_alert(conn: SAConnection, row: dict[str, Any]) -> None:
@@ -266,12 +266,12 @@ def backfill(
 
     Every run produces the same row counts, so a backfill can be repeated.
     """
-    conn = _connect()
-    try:
+    with _database_engine().begin() as conn:
         end = _utcnow()
         for offset in range(days, 0, -1):
             start = end - timedelta(days=offset)
-            window = (start.isoformat(), end.isoformat())
+            window_end = end - timedelta(days=offset - 1)
+            window = (start.isoformat(), window_end.isoformat())
             for provider in PROVIDERS:
                 source = _usage_source(provider)
                 rows, _unknown = source.fetch_usage(window, bucket_width="1h")
@@ -280,13 +280,11 @@ def backfill(
                     conn,
                     source="backfill",
                     window_start=start.isoformat(),
-                    window_end=end.isoformat(),
+                    window_end=window_end.isoformat(),
                     rows_written=len(rows),
                     success=True,
                 )
         typer.echo(f"[backfill] wrote historical usage for the trailing {days} days")
-    finally:
-        conn.close()
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -30,6 +30,11 @@ class ReadOnlyTransport(httpx.HTTPTransport):
 class AnthropicUsageSource:
     """Implements UsageSource against the Anthropic Admin API (or the simulator)."""
 
+    provider = "anthropic"
+    usage_endpoint = "/v1/organizations/usage_report/messages"
+    cost_endpoint = "/v1/organizations/cost_report"
+    keys_endpoint = "/v1/organizations/api_keys"
+
     def __init__(
         self, base_url: str, admin_key: str, transport: httpx.BaseTransport | None = None
     ) -> None:
