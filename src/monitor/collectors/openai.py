@@ -5,6 +5,7 @@ UsageSource interface. Only the auth header, endpoint path, and normalize
 function differ from Anthropic.
 """
 
+from datetime import datetime
 from typing import Any
 
 import httpx
@@ -13,6 +14,13 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_ex
 from monitor.collectors.anthropic import ReadOnlyTransport
 from monitor.collectors.constants import BUCKET_LIMITS
 from monitor.collectors.normalize_openai import normalize_openai_usage
+
+
+def to_unix_seconds(value: str | int) -> int:
+    """OpenAI takes Unix seconds; accept those or an RFC 3339 string."""
+    if isinstance(value, int):
+        return value
+    return int(datetime.fromisoformat(value).timestamp())
 
 
 class OpenAIUsageSource:
@@ -55,7 +63,7 @@ class OpenAIUsageSource:
         """Fetch usage rows for [start, end), paginated via next_page."""
         if bucket_width not in BUCKET_LIMITS:
             raise ValueError(f"bucket_width must be one of {list(BUCKET_LIMITS)}")
-        start, end = window
+        start, end = (to_unix_seconds(t) for t in window)
 
         all_rows: list[dict[str, Any]] = []
         total_unknown = 0
@@ -84,7 +92,7 @@ class OpenAIUsageSource:
         """Fetch cost rows from the daily costs endpoint."""
         from monitor.collectors.normalize_cost import normalize_openai_costs
 
-        start, end = window
+        start, end = (to_unix_seconds(t) for t in window)
         payload = self._get(
             "/v1/organization/costs",
             params={

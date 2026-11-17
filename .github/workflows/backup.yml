@@ -28,11 +28,13 @@ jobs:
       - name: Create pg dump
         run: |
           mkdir -p /tmp/dump
-          # Dump the CI Postgres service. To backup a deployed (Render) database
-          # instead, point this at that host and put its connection string in the
-          # POSTGRES_URL repository variable, then use: pg_dump "$POSTGRES_URL".
-          PGPASSWORD=monitor pg_dump -h postgres -U monitor -d monitor \
-            -f /tmp/dump/monitor-$(date +%Y%m%d-%H%M%S).sql
+          # Run pg_dump inside the service container so the client version
+          # always matches the server (the runner ships an older pg_dump).
+          # This still dumps the empty CI service; pointing it at the deployed
+          # database is tracked with the deploy work.
+          docker exec ${{ job.services.postgres.id }} \
+            pg_dump -U monitor -d monitor \
+            > /tmp/dump/monitor-$(date +%Y%m%d-%H%M%S).sql
       - name: Upload pg dump artifact
         uses: actions/upload-artifact@v4
         with:

@@ -19,7 +19,7 @@ the "weekly report: <date>" commit.
 import logging
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -81,7 +81,7 @@ def _get_backtest_summary() -> str:
 
 def main() -> int:
     """Generate and commit the weekly report."""
-    date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    date_str = datetime.now(UTC).strftime("%Y-%m-%d")
     report_path = Path("docs/reports") / f"weekly-{date_str}.md"
 
     report_path.parent.mkdir(parents=True, exist_ok=True)
