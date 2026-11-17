@@ -10,6 +10,13 @@ from typing import Any, Protocol
 class UsageSource(Protocol):
     """Read-only access to one provider's usage, cost, and key inventory."""
 
+    provider: str
+    usage_endpoint: str
+    cost_endpoint: str
+    keys_endpoint: str
+    # The body of the most recent response, kept for raw_payload.
+    last_raw_response: dict[str, Any] | None
+
     def fetch_usage(
         self, window: tuple[str | int, str | int], bucket_width: str
     ) -> tuple[list[dict[str, Any]], int]:
@@ -19,7 +26,7 @@ class UsageSource(Protocol):
         """
         ...
 
-    def fetch_costs(self, window: tuple[str, str]) -> list[dict[str, Any]]:
+    def fetch_costs(self, window: tuple[str | int, str | int]) -> list[dict[str, Any]]:
         """Return cost rows for [start, end)."""
         ...
 

@@ -26,6 +26,11 @@ def to_unix_seconds(value: str | int) -> int:
 class OpenAIUsageSource:
     """Implements UsageSource against the OpenAI Admin API (or the simulator)."""
 
+    provider = "openai"
+    usage_endpoint = "/v1/organization/usage/completions"
+    cost_endpoint = "/v1/organization/costs"
+    keys_endpoint = "/v1/organization/projects"
+
     def __init__(
         self, base_url: str, admin_key: str, transport: httpx.BaseTransport | None = None
     ) -> None:

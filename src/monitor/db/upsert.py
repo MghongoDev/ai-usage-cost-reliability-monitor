@@ -4,6 +4,9 @@ Every run re-pulls the trailing window and upserts, so re-running produces
 identical row counts. Each run is recorded in collector_run (source, window,
 rows, success, error) and every raw payload is stored in raw_payload with a
 retention policy.
+
+Issue: #35. The source supplies its own provider and endpoint labels, so a run
+is never attributed to a different provider.
 """
 
 from typing import Any
@@ -351,14 +354,14 @@ def run_collection(
         if hasattr(source, "last_raw_response") and source.last_raw_response is not None:
             record_raw_payload(
                 conn,
-                provider="anthropic",
-                endpoint="/v1/organizations/usage_report/messages",
+                provider=source.provider,
+                endpoint=source.usage_endpoint,
                 params={"starting_at": start, "ending_at": end, "bucket_width": bucket_width},
                 body=source.last_raw_response,
             )
         record_collector_run(
             conn,
-            source="anthropic.usage",
+            source=f"{source.provider}.usage",
             window_start=start,
             window_end=end,
             rows_written=len(rows),
@@ -368,7 +371,7 @@ def run_collection(
     except Exception as exc:
         record_collector_run(
             conn,
-            source="anthropic.usage",
+            source=f"{source.provider}.usage",
             window_start=start,
             window_end=end,
             rows_written=0,
