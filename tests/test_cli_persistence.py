@@ -15,10 +15,11 @@ from typer.testing import CliRunner
 import monitor.cli as cli
 from monitor.collectors.anthropic import AnthropicUsageSource
 from monitor.collectors.openai import OpenAIUsageSource
+from monitor.config import settings
 from monitor.simulator.app import create_app
 
-TEST_DATABASE_URL = "postgresql://monitor@127.0.0.1:55436/monitor"
-_READ_ENGINE = create_engine(TEST_DATABASE_URL)
+DATABASE_URL = settings.database_url
+_READ_ENGINE = create_engine(DATABASE_URL)
 
 
 def _read_connect():
@@ -103,9 +104,9 @@ class FakeSource:
 
 @pytest.fixture()
 def db(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(cli.config.settings, "database_url", TEST_DATABASE_URL)
+    monkeypatch.setattr(cli.config.settings, "database_url", DATABASE_URL)
     monkeypatch.setattr(cli, "_engine", None)
-    engine = create_engine(TEST_DATABASE_URL)
+    engine = create_engine(DATABASE_URL)
     tables = (
         "usage_fact",
         "cost_fact",
